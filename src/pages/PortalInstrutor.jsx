@@ -1,7 +1,15 @@
 import React, { useState } from "react";
 import { api } from "../services/api";
+import {
+  Edit2,
+  CheckCircle,
+  Plus,
+  Trash2,
+  AlertTriangle,
+  FileText,
+} from "lucide-react";
 
-// Ícones SVG
+// Ícones SVG Originais
 const FolderIcon = () => (
   <svg
     className="w-16 h-16 text-blue-500 drop-shadow-sm mb-3"
@@ -14,7 +22,7 @@ const FolderIcon = () => (
 
 const UploadIcon = () => (
   <svg
-    className="w-12 h-12 text-slate-400 mb-3"
+    className="w-10 h-10 text-blue-600 mb-3"
     fill="none"
     stroke="currentColor"
     viewBox="0 0 24 24"
@@ -47,8 +55,14 @@ const RobotIcon = () => (
 export default function PortalInstrutor() {
   const [caminho, setCaminho] = useState([]);
 
+  // Simulação de Perfil
+  const [userRole, setUserRole] = useState("INSTRUTOR");
+  const [isEditing, setIsEditing] = useState(userRole === "ADMIN");
+
   // Estados do Motor de OCR
-  const [faseUpload, setFaseUpload] = useState("aguardando");
+  const [isLendoNota, setIsLendoNota] = useState(false);
+  const [showFormulario, setShowFormulario] = useState(false); // Controla a "gaveta" do lápis
+
   const [dadosNota, setDadosNota] = useState({
     emitente: "",
     valor: "",
@@ -57,7 +71,7 @@ export default function PortalInstrutor() {
     descricao: "",
   });
 
-  // Guardar os arquivos reais para envio posterior
+  // Arquivos
   const [arquivoNotaFiscal, setArquivoNotaFiscal] = useState(null);
   const [anexosExtras, setAnexosExtras] = useState([]);
 
@@ -74,21 +88,20 @@ export default function PortalInstrutor() {
   ];
 
   const entrarNaPasta = (pasta) => setCaminho([...caminho, pasta]);
-
   const voltarParaRaiz = () => {
     setCaminho([]);
     resetarFluxoUpload();
   };
-
   const voltarParaAno = () => {
     setCaminho([caminho[0]]);
     resetarFluxoUpload();
   };
 
   const resetarFluxoUpload = () => {
-    setFaseUpload("aguardando");
     setArquivoNotaFiscal(null);
     setAnexosExtras([]);
+    setShowFormulario(false);
+    setIsEditing(userRole === "ADMIN");
   };
 
   const handleArquivoSelecionado = async (e) => {
@@ -96,7 +109,8 @@ export default function PortalInstrutor() {
     if (!arquivo) return;
 
     setArquivoNotaFiscal(arquivo);
-    setFaseUpload("lendo");
+    setIsLendoNota(true);
+    setShowFormulario(false); // Fecha a gaveta se enviar nova nota
 
     const formData = new FormData();
     formData.append("arquivo", arquivo);
@@ -107,8 +121,6 @@ export default function PortalInstrutor() {
       });
 
       const extraido = response.data;
-
-      // Converter a data de DD/MM/YYYY do PDF para YYYY-MM-DD do Input HTML
       let dataFormatada = extraido.data;
       if (dataFormatada && dataFormatada.includes("/")) {
         const [dia, mes, ano] = dataFormatada.split("/");
@@ -122,9 +134,14 @@ export default function PortalInstrutor() {
         numero: extraido.numero || "",
         descricao: extraido.descricao || "",
       });
+
+      // Se for ADMIN, já deixa a gaveta aberta e destravada
+      if (userRole === "ADMIN") {
+        setShowFormulario(true);
+        setIsEditing(true);
+      }
     } catch (error) {
       console.error("Erro na leitura do OCR:", error);
-      // Mesmo se der erro, libera para o instrutor preencher manualmente
       setDadosNota({
         emitente: "",
         valor: "",
@@ -133,21 +150,36 @@ export default function PortalInstrutor() {
         descricao: "",
       });
     } finally {
-      setFaseUpload("revisao");
+      setIsLendoNota(false);
     }
+  };
+
+  const handleAnexosExtras = (e) => {
+    const files = Array.from(e.target.files);
+    setAnexosExtras([...anexosExtras, ...files]);
+  };
+
+  const removerAnexo = (index) => {
+    const novosAnexos = [...anexosExtras];
+    novosAnexos.splice(index, 1);
+    setAnexosExtras(novosAnexos);
   };
 
   const handleConfirmarEnvio = (e) => {
     e.preventDefault();
-    // Na próxima etapa faremos o envio real da Despesa + Arquivos.
-    // Por enquanto, validamos apenas a visualização.
-    alert("Despesa e arquivos confirmados na interface!");
+    if (!arquivoNotaFiscal) return alert("Por favor, anexe a Nota Fiscal.");
+    alert("Prestação de contas enviada com sucesso!");
     voltarParaAno();
   };
 
-  const handleAnexosExtras = (e) => {
-    setAnexosExtras(Array.from(e.target.files));
-  };
+  const isLocked = !isEditing;
+  // Verifica se faltou algum dado na leitura
+  const temPendenciaOCR =
+    arquivoNotaFiscal &&
+    (!dadosNota.emitente ||
+      !dadosNota.valor ||
+      !dadosNota.data ||
+      !dadosNota.numero);
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col">
@@ -161,6 +193,15 @@ export default function PortalInstrutor() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => {
+              setUserRole(userRole === "INSTRUTOR" ? "ADMIN" : "INSTRUTOR");
+              setIsEditing(userRole === "INSTRUTOR");
+            }}
+            className="text-xs bg-slate-100 p-2 rounded mr-4"
+          >
+            Modo: {userRole}
+          </button>
           <span className="text-sm font-medium text-slate-500">
             Tailor Kunz
           </span>
@@ -197,13 +238,14 @@ export default function PortalInstrutor() {
           )}
         </div>
 
+        {/* PASTAS: ANOS E MESES */}
         {caminho.length === 0 && (
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
             {anos.map((ano) => (
               <button
                 key={ano}
                 onClick={() => entrarNaPasta(ano)}
-                className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm hover:shadow-md hover:border-blue-300 transition-all flex flex-col items-center justify-center group"
+                className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm hover:border-blue-300 transition-all flex flex-col items-center group"
               >
                 <FolderIcon />
                 <span className="text-slate-700 font-bold group-hover:text-blue-600">
@@ -220,7 +262,7 @@ export default function PortalInstrutor() {
               <button
                 key={mes}
                 onClick={() => entrarNaPasta(mes)}
-                className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm hover:shadow-md hover:border-blue-300 transition-all flex flex-col items-center justify-center group"
+                className="bg-white border border-slate-200 p-6 rounded-2xl shadow-sm hover:border-blue-300 transition-all flex flex-col items-center group"
               >
                 <FolderIcon />
                 <span className="text-slate-700 font-bold group-hover:text-blue-600">
@@ -231,55 +273,159 @@ export default function PortalInstrutor() {
           </div>
         )}
 
+        {/* ÁREA DE UPLOADS (Visível Lado a Lado) */}
         {caminho.length === 2 && (
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-10 max-w-2xl mx-auto">
-            {faseUpload === "aguardando" && (
-              <div className="text-center py-12 border-dashed border-2 border-slate-300 rounded-xl bg-slate-50">
-                <UploadIcon />
-                <h3 className="text-xl font-bold text-slate-800 mb-2">
-                  Arraste a Nota Fiscal
-                </h3>
-                <p className="text-slate-500 mb-6 max-w-md mx-auto">
-                  Nosso robô lerá o PDF e preencherá os dados para você.
-                </p>
-                <label className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-lg cursor-pointer transition-colors shadow-sm inline-block">
-                  Selecionar Arquivo PDF
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 max-w-4xl mx-auto">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* BLOCO 1: NOTA FISCAL */}
+              {isLendoNota ? (
+                <div className="border-2 border-dashed border-blue-300 bg-blue-50 p-8 rounded-xl text-center flex flex-col items-center justify-center">
+                  <RobotIcon />
+                  <h3 className="font-bold text-slate-800 animate-pulse">
+                    Lendo PDF...
+                  </h3>
+                </div>
+              ) : arquivoNotaFiscal ? (
+                <div
+                  className={`border-2 p-6 rounded-xl text-center flex flex-col items-center justify-center relative transition-colors ${temPendenciaOCR ? "border-amber-400 bg-amber-50" : "border-emerald-400 bg-emerald-50"}`}
+                >
+                  {/* Botão de Lápis */}
+                  <button
+                    onClick={() => setShowFormulario(!showFormulario)}
+                    className="absolute top-3 right-3 p-2 bg-white rounded-full shadow-sm hover:bg-slate-100 text-slate-700 transition"
+                    title="Ver/Editar Dados"
+                  >
+                    <Edit2 className="w-4 h-4" />
+                  </button>
+
+                  {temPendenciaOCR ? (
+                    <AlertTriangle className="w-12 h-12 text-amber-500 mb-3" />
+                  ) : (
+                    <CheckCircle className="w-12 h-12 text-emerald-500 mb-3" />
+                  )}
+
+                  <h3
+                    className={`font-semibold text-lg ${temPendenciaOCR ? "text-amber-900" : "text-emerald-900"}`}
+                  >
+                    Nota Anexada
+                  </h3>
+                  <p className="text-sm font-medium mt-1 truncate max-w-[200px] text-slate-600">
+                    {arquivoNotaFiscal.name}
+                  </p>
+
+                  {temPendenciaOCR && (
+                    <span className="mt-2 text-xs font-bold text-amber-700 bg-amber-100 px-2 py-1 rounded">
+                      ⚠️ Clique no lápis para corrigir
+                    </span>
+                  )}
+
+                  <label className="text-xs text-blue-600 hover:underline mt-4 cursor-pointer">
+                    Trocar arquivo
+                    <input
+                      type="file"
+                      accept=".pdf"
+                      onChange={handleArquivoSelecionado}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+              ) : (
+                <div className="border-2 border-dashed border-blue-300 bg-blue-50 hover:bg-blue-100 transition p-8 rounded-xl text-center flex flex-col items-center justify-center relative">
                   <input
                     type="file"
-                    className="hidden"
                     accept=".pdf"
                     onChange={handleArquivoSelecionado}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                   />
-                </label>
-              </div>
-            )}
+                  <UploadIcon />
+                  <h3 className="font-semibold text-lg text-blue-900">
+                    1. Nota Fiscal
+                  </h3>
+                  <p className="text-sm text-blue-700 mt-2">
+                    Arraste o PDF aqui
+                  </p>
+                </div>
+              )}
 
-            {faseUpload === "lendo" && (
-              <div className="text-center py-16">
-                <RobotIcon />
-                <h3 className="text-xl font-bold text-slate-800 mb-2 animate-pulse">
-                  Robô analisando documento...
-                </h3>
-                <p className="text-slate-500">
-                  Extraindo informações na nuvem.
-                </p>
-              </div>
-            )}
-
-            {faseUpload === "revisao" && (
-              <div>
-                <div className="mb-6 pb-6 border-b border-slate-100 flex justify-between items-center">
-                  <div>
-                    <h3 className="text-xl font-bold text-emerald-700">
-                      Leitura Concluída!
+              {/* BLOCO 2: RELATÓRIOS EXTRAS (Acumulativo) */}
+              <div
+                className={`border-2 transition p-6 rounded-xl flex flex-col relative ${anexosExtras.length > 0 ? "border-solid border-slate-300 bg-slate-50" : "border-dashed border-slate-300 bg-slate-50 hover:bg-slate-100"}`}
+              >
+                {anexosExtras.length === 0 ? (
+                  <div className="text-center flex flex-col items-center justify-center h-full">
+                    <input
+                      type="file"
+                      multiple
+                      accept=".pdf,.jpg,.png"
+                      onChange={handleAnexosExtras}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    />
+                    <FileText className="w-10 h-10 text-slate-400 mb-3" />
+                    <h3 className="font-semibold text-lg text-slate-700">
+                      2. Relatórios Extras
                     </h3>
-                    <p className="text-slate-500 text-sm mt-1">
-                      Verifique se o robô extraiu os dados corretamente.
+                    <p className="text-sm text-slate-500 mt-2">
+                      Listas de presença, recibos...
                     </p>
                   </div>
-                  <span className="bg-emerald-100 text-emerald-700 py-1 px-3 rounded-full text-xs font-bold">
-                    NF Anexada
-                  </span>
+                ) : (
+                  <div className="flex flex-col h-full">
+                    <h3 className="font-semibold text-slate-700 mb-3 flex items-center gap-2">
+                      <FileText className="w-5 h-5" /> Arquivos Adicionados
+                    </h3>
+                    {/* Lista de Arquivos */}
+                    <ul className="flex-1 overflow-y-auto max-h-32 space-y-2 mb-4 pr-1">
+                      {anexosExtras.map((f, i) => (
+                        <li
+                          key={i}
+                          className="flex justify-between items-center bg-white px-3 py-2 rounded border border-slate-200 text-sm shadow-sm"
+                        >
+                          <span className="truncate max-w-[150px] text-slate-700 font-medium">
+                            {f.name}
+                          </span>
+                          <button
+                            onClick={() => removerAnexo(i)}
+                            className="text-red-400 hover:text-red-600"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                    {/* Botão de + Adicionar Mais */}
+                    <div className="relative mt-auto">
+                      <button className="w-full py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 font-medium rounded transition flex items-center justify-center gap-2">
+                        <Plus className="w-4 h-4" /> Adicionar mais
+                      </button>
+                      <input
+                        type="file"
+                        multiple
+                        accept=".pdf,.jpg,.png"
+                        onChange={handleAnexosExtras}
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* A GAVETA COM OS DADOS DA NOTA (Mostrada ao clicar no lápis) */}
+            {showFormulario && arquivoNotaFiscal && (
+              <div className="mt-8 pt-6 border-t border-slate-200 animate-in fade-in slide-in-from-top-4 duration-300">
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-lg font-semibold text-slate-800">
+                    Dados Extraídos da Nota
+                  </h3>
+                  {userRole === "INSTRUTOR" && !isEditing && (
+                    <button
+                      type="button"
+                      onClick={() => setIsEditing(true)}
+                      className="flex items-center gap-2 text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 py-2 px-4 rounded-lg transition font-medium border"
+                    >
+                      <Edit2 className="w-4 h-4" /> Destravar para Edição
+                    </button>
+                  )}
                 </div>
 
                 <form onSubmit={handleConfirmarEnvio} className="space-y-4">
@@ -290,7 +436,8 @@ export default function PortalInstrutor() {
                       </label>
                       <input
                         type="text"
-                        className={`w-full px-4 py-2 border rounded-lg outline-none transition-colors ${dadosNota.emitente ? "border-slate-300 focus:ring-2 focus:ring-blue-500" : "border-red-400 bg-red-50 focus:ring-2 focus:ring-red-500"}`}
+                        disabled={isLocked}
+                        className={`w-full px-4 py-2 border rounded-lg outline-none ${isLocked ? "bg-slate-50 text-slate-500" : "focus:ring-2 focus:ring-blue-500"} ${!dadosNota.emitente && !isLocked ? "border-red-400 bg-red-50" : "border-slate-300"}`}
                         value={dadosNota.emitente}
                         onChange={(e) =>
                           setDadosNota({
@@ -298,15 +445,7 @@ export default function PortalInstrutor() {
                             emitente: e.target.value,
                           })
                         }
-                        placeholder={
-                          dadosNota.emitente ? "" : "Preencha o fornecedor"
-                        }
                       />
-                      {!dadosNota.emitente && (
-                        <span className="text-xs text-red-600 font-medium mt-1 inline-block">
-                          ⚠️ Dado não localizado. Preencha manualmente.
-                        </span>
-                      )}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -314,18 +453,13 @@ export default function PortalInstrutor() {
                       </label>
                       <input
                         type="text"
-                        className={`w-full px-4 py-2 border rounded-lg outline-none font-medium transition-colors ${dadosNota.valor ? "border-slate-300 focus:ring-2 focus:ring-blue-500" : "border-red-400 bg-red-50 focus:ring-2 focus:ring-red-500"}`}
+                        disabled={isLocked}
+                        className={`w-full px-4 py-2 border rounded-lg outline-none font-medium ${isLocked ? "bg-slate-50 text-slate-500" : "focus:ring-2 focus:ring-blue-500"} ${!dadosNota.valor && !isLocked ? "border-red-400 bg-red-50" : "border-slate-300"}`}
                         value={dadosNota.valor}
                         onChange={(e) =>
                           setDadosNota({ ...dadosNota, valor: e.target.value })
                         }
-                        placeholder={dadosNota.valor ? "" : "Ex: 1500,00"}
                       />
-                      {!dadosNota.valor && (
-                        <span className="text-xs text-red-600 font-medium mt-1 inline-block">
-                          ⚠️ Informe o valor.
-                        </span>
-                      )}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -333,38 +467,27 @@ export default function PortalInstrutor() {
                       </label>
                       <input
                         type="date"
-                        className={`w-full px-4 py-2 border rounded-lg outline-none transition-colors ${dadosNota.data ? "border-slate-300 focus:ring-2 focus:ring-blue-500" : "border-red-400 bg-red-50 focus:ring-2 focus:ring-red-500"}`}
+                        disabled={isLocked}
+                        className={`w-full px-4 py-2 border rounded-lg outline-none ${isLocked ? "bg-slate-50 text-slate-500" : "focus:ring-2 focus:ring-blue-500"} ${!dadosNota.data && !isLocked ? "border-red-400 bg-red-50" : "border-slate-300"}`}
                         value={dadosNota.data}
                         onChange={(e) =>
                           setDadosNota({ ...dadosNota, data: e.target.value })
                         }
                       />
-                      {!dadosNota.data && (
-                        <span className="text-xs text-red-600 font-medium mt-1 inline-block">
-                          ⚠️ Informe a data.
-                        </span>
-                      )}
                     </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">
                         Número da NF
                       </label>
                       <input
                         type="text"
-                        className={`w-full px-4 py-2 border rounded-lg outline-none transition-colors ${dadosNota.numero ? "border-slate-300 focus:ring-2 focus:ring-blue-500" : "border-red-400 bg-red-50 focus:ring-2 focus:ring-red-500"}`}
+                        disabled={isLocked}
+                        className={`w-full px-4 py-2 border rounded-lg outline-none ${isLocked ? "bg-slate-50 text-slate-500" : "focus:ring-2 focus:ring-blue-500"} ${!dadosNota.numero && !isLocked ? "border-red-400 bg-red-50" : "border-slate-300"}`}
                         value={dadosNota.numero}
                         onChange={(e) =>
                           setDadosNota({ ...dadosNota, numero: e.target.value })
                         }
-                        placeholder={dadosNota.numero ? "" : "Ex: 104384"}
                       />
-                      {!dadosNota.numero && (
-                        <span className="text-xs text-red-600 font-medium mt-1 inline-block">
-                          ⚠️ Informe o número.
-                        </span>
-                      )}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -372,7 +495,8 @@ export default function PortalInstrutor() {
                       </label>
                       <input
                         type="text"
-                        className={`w-full px-4 py-2 border rounded-lg outline-none transition-colors ${dadosNota.descricao ? "border-slate-300 focus:ring-2 focus:ring-blue-500" : "border-red-400 bg-red-50 focus:ring-2 focus:ring-red-500"}`}
+                        disabled={isLocked}
+                        className={`w-full px-4 py-2 border rounded-lg outline-none ${isLocked ? "bg-slate-50 text-slate-500" : "focus:ring-2 focus:ring-blue-500 border-slate-300"}`}
                         value={dadosNota.descricao}
                         onChange={(e) =>
                           setDadosNota({
@@ -384,25 +508,12 @@ export default function PortalInstrutor() {
                     </div>
                   </div>
 
-                  <div className="mt-4 pt-4 border-t border-slate-100">
-                    <label className="text-sm font-medium text-blue-600 hover:text-blue-800 cursor-pointer flex items-center gap-2">
-                      + Anexar Listas de Presença ou Relatórios (
-                      {anexosExtras.length} selecionados)
-                      <input
-                        type="file"
-                        className="hidden"
-                        multiple
-                        accept=".pdf,.jpg,.png,.jpeg"
-                        onChange={handleAnexosExtras}
-                      />
-                    </label>
-                  </div>
-
                   <button
                     type="submit"
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-lg transition-colors mt-6"
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-lg transition-colors mt-6 flex justify-center items-center gap-2 shadow-sm"
                   >
-                    Confirmar e Enviar Prestação
+                    <CheckCircle className="w-5 h-5" /> Enviar Prestação
+                    Definitiva
                   </button>
                 </form>
               </div>
