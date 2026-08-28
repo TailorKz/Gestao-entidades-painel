@@ -1,108 +1,81 @@
-import React, { useState, useEffect } from 'react';
-import { api } from '../services/api';
+import React from 'react';
+import { Users, AlertCircle, CheckCircle2, Clock3, TrendingUp } from 'lucide-react';
+
+const heading = { fontFamily: "'Poppins', sans-serif" };
 
 export default function DashboardGestor() {
-    const [parcela, setParcela] = useState(null);
-    const [despesas, setDespesas] = useState([]);
-
-    useEffect(() => {
-        api.get('/parcelas')
-            .then(response => {
-                if (response.data.length > 0) {
-                    const parcelaAtual = response.data[0];
-                    setParcela(parcelaAtual);
-                    return api.get(`/despesas/parcela/${parcelaAtual.id}`);
-                }
-            })
-            .then(response => {
-                if (response) {
-                    setDespesas(response.data);
-                }
-            })
-            .catch(error => console.error("Erro na API:", error));
-    }, []);
+    const userName = localStorage.getItem('usuarioNome') || 'Gestor';
 
     return (
-        <div className="min-h-screen flex flex-col">
-            <header className="bg-white shadow-sm border-b border-slate-200 px-8 py-4 flex justify-between items-center">
-                <h1 className="text-xl font-bold text-slate-800">Painel de Gestão - INDACI</h1>
-                <div className="flex items-center gap-3">
-                    <span className="text-sm font-medium text-slate-500">Gestor Administrativo</span>
-                    <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold">G</div>
-                </div>
-            </header>
-
-            <main className="flex-1 max-w-7xl w-full mx-auto p-8 space-y-6">
-                <div className="flex justify-between items-end">
-                    <div>
-                        <h2 className="text-2xl font-bold text-slate-800">
-                            {parcela ? parcela.tituloFomento : "Carregando..."}
-                        </h2>
-                        <p className="text-slate-500 mt-1">Acompanhamento de saldo e aprovação de despesas.</p>
-                    </div>
+        <div className="min-h-screen bg-slate-50 flex flex-col">
+            <main className="flex-1 max-w-6xl w-full mx-auto p-8 space-y-8">
+                
+                {/* SAUDAÇÃO E RESUMO */}
+                <div>
+                    <h2 style={heading} className="text-2xl font-semibold text-slate-900">
+                        Olá, {userName}!
+                    </h2>
+                    <p className="text-sm text-slate-500 mt-1">
+                        Aqui está o resumo das atividades e pendências do INDACI de hoje.
+                    </p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-                        <h3 className="text-sm font-medium text-slate-500">Valor Inicial (Fomento)</h3>
-                        <p className="text-3xl font-bold text-slate-800 mt-2">
-                            {parcela ? `R$ ${parcela.valorInicial}` : "..."}
-                        </p>
+                {/* CARDS DE INDICADORES (MOCK INICIAL) */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Equipe Ativa</h3>
+                            <div className="p-2 bg-sky-50 rounded-lg"><Users className="w-4 h-4 text-sky-600" /></div>
+                        </div>
+                        <p style={heading} className="text-3xl font-semibold text-slate-900">12</p>
+                        <p className="text-xs text-slate-500 mt-2">Instrutores cadastrados</p>
                     </div>
-                    <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-                        <h3 className="text-sm font-medium text-slate-500">Saldo Atual</h3>
-                        <p className="text-3xl font-bold text-emerald-600 mt-2">
-                            {parcela ? `R$ ${parcela.saldoAtual}` : "..."}
-                        </p>
+
+                    <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-xs font-bold text-amber-600 uppercase tracking-wider">Aguardando Envio</h3>
+                            <div className="p-2 bg-amber-50 rounded-lg"><Clock3 className="w-4 h-4 text-amber-600" /></div>
+                        </div>
+                        <p style={heading} className="text-3xl font-semibold text-slate-900">4</p>
+                        <p className="text-xs text-slate-500 mt-2">Faltam prestar contas neste mês</p>
                     </div>
-                    <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100">
-                        <h3 className="text-sm font-medium text-slate-500">Número da Parcela</h3>
-                        <p className="text-3xl font-bold text-amber-500 mt-2">
-                            {parcela ? `Parcela 0${parcela.numero}` : "..."}
-                        </p>
+
+                    <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-xs font-bold text-emerald-600 uppercase tracking-wider">Notas Recebidas</h3>
+                            <div className="p-2 bg-emerald-50 rounded-lg"><CheckCircle2 className="w-4 h-4 text-emerald-600" /></div>
+                        </div>
+                        <p style={heading} className="text-3xl font-semibold text-slate-900">8</p>
+                        <p className="text-xs text-slate-500 mt-2">Prestações validadas</p>
+                    </div>
+
+                    <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-xs font-bold text-sky-600 uppercase tracking-wider">Saúde da Parcela</h3>
+                            <div className="p-2 bg-sky-50 rounded-lg"><TrendingUp className="w-4 h-4 text-sky-600" /></div>
+                        </div>
+                        <p style={heading} className="text-3xl font-semibold text-slate-900">85%</p>
+                        <p className="text-xs text-slate-500 mt-2">Do orçamento comprometido</p>
                     </div>
                 </div>
 
-                <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden mt-8">
-                    <div className="p-6 border-b border-slate-100">
-                        <h3 className="text-lg font-bold text-slate-800">Extrato de Despesas</h3>
+                {/* ÁREA DE ALERTAS / PENDÊNCIAS */}
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center gap-2">
+                        <AlertCircle className="w-5 h-5 text-amber-500" />
+                        <h3 style={heading} className="text-sm font-semibold text-slate-900">
+                            Atenção Requerida: Instrutores Pendentes
+                        </h3>
                     </div>
-                    
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
-                            <thead>
-                                <tr className="bg-slate-50 text-slate-500 text-sm border-b border-slate-100">
-                                    <th className="p-4 font-medium">Instrutor</th>
-                                    <th className="p-4 font-medium">Competência</th>
-                                    <th className="p-4 font-medium">Valor</th>
-                                    <th className="p-4 font-medium">Status</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {despesas.length === 0 ? (
-                                    <tr>
-                                        <td colSpan="4" className="p-6 text-center text-slate-500">
-                                            Nenhuma despesa registrada ainda.
-                                        </td>
-                                    </tr>
-                                ) : (
-                                    despesas.map(despesa => (
-                                        <tr key={despesa.id} className="border-b border-slate-50 hover:bg-slate-50">
-                                            <td className="p-4 text-slate-800 font-medium">{despesa.nomeInstrutor}</td>
-                                            <td className="p-4 text-slate-600">{despesa.dataCompetencia}</td>
-                                            <td className="p-4 text-slate-800 font-medium">R$ {despesa.valor}</td>
-                                            <td className="p-4">
-                                                <span className="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-xs font-semibold">
-                                                    {despesa.status.replace(/_/g, ' ')}
-                                                </span>
-                                            </td>
-                                        </tr>
-                                    ))
-                                )}
-                            </tbody>
-                        </table>
+                    <div className="p-6">
+                        <div className="text-center py-8 border border-dashed border-slate-300 rounded-lg bg-slate-50">
+                            <p className="text-sm text-slate-500">
+                                A integração com os envios pendentes será exibida aqui.
+                            </p>
+                        </div>
                     </div>
                 </div>
+
             </main>
         </div>
     );
