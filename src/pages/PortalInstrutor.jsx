@@ -61,7 +61,7 @@ export default function PortalInstrutor() {
 
   // Estados do Motor de OCR
   const [isLendoNota, setIsLendoNota] = useState(false);
-  const [showFormulario, setShowFormulario] = useState(false); // Controla a "gaveta" do lápis
+  const [showFormulario, setShowFormulario] = useState(false);
 
   const [dadosNota, setDadosNota] = useState({
     emitente: "",
@@ -104,13 +104,25 @@ export default function PortalInstrutor() {
     setIsEditing(userRole === "ADMIN");
   };
 
+  const limite30MB = 30 * 1024 * 1024; // 30 MB em bytes
+
   const handleArquivoSelecionado = async (e) => {
     const arquivo = e.target.files[0];
     if (!arquivo) return;
 
+    // --- NOVA TRAVA DE UX ---
+    if (arquivo.size > limite30MB) {
+        return alert("⚠️ O arquivo excedeu o limite de 30MB. Reduza o tamanho ou divida em partes.");
+    }
+    const nome = arquivo.name.toLowerCase();
+    if (nome.endsWith(".doc") || nome.endsWith(".docx")) {
+        return alert("⚠️ Documentos Word não são aceitos pelo sistema do INDACI. Por favor, salve como PDF.");
+    }
+    // ------------------------
+
     setArquivoNotaFiscal(arquivo);
     setIsLendoNota(true);
-    setShowFormulario(false); // Fecha a gaveta se enviar nova nota
+    setShowFormulario(false);
 
     const formData = new FormData();
     formData.append("arquivo", arquivo);
@@ -135,7 +147,6 @@ export default function PortalInstrutor() {
         descricao: extraido.descricao || "",
       });
 
-      // Se for ADMIN, já deixa a gaveta aberta e destravada
       if (userRole === "ADMIN") {
         setShowFormulario(true);
         setIsEditing(true);
@@ -154,9 +165,33 @@ export default function PortalInstrutor() {
     }
   };
 
-  const handleAnexosExtras = (e) => {
+ const handleAnexosExtras = (e) => {
+    const limite30MB = 30 * 1024 * 1024; // 30 MB
+    
+    // 1. Pega todos os arquivos que o instrutor selecionou de uma vez
     const files = Array.from(e.target.files);
-    setAnexosExtras([...anexosExtras, ...files]);
+
+    // 2. Filtra a lista, deixando passar apenas os permitidos
+    const arquivosValidos = files.filter(arquivo => {
+      const nome = arquivo.name.toLowerCase();
+
+      // Regra 1: Bloqueia Word
+      if (nome.endsWith(".doc") || nome.endsWith(".docx")) {
+        alert(`❌ O arquivo "${arquivo.name}" foi recusado. Documentos Word não são aceitos, salve como PDF.`);
+        return false; // Remove da lista
+      }
+
+      // Regra 2: Bloqueia maiores que 30MB
+      if (arquivo.size > limite30MB) {
+        alert(`❌ O arquivo "${arquivo.name}" excedeu o limite de 30MB e foi recusado.`);
+        return false; // Remove da lista
+      }
+
+      return true;
+    });
+
+    // 3. Adiciona no estado apenas os arquivos que passaram do filtro
+    setAnexosExtras([...anexosExtras, ...arquivosValidos]);
   };
 
   const removerAnexo = (index) => {
@@ -165,15 +200,64 @@ export default function PortalInstrutor() {
     setAnexosExtras(novosAnexos);
   };
 
-  const handleConfirmarEnvio = (e) => {
+  const handleConfirmarEnvio = async (e) => {
     e.preventDefault();
-    if (!arquivoNotaFiscal) return alert("Por favor, anexe a Nota Fiscal.");
-    alert("Prestação de contas enviada com sucesso!");
-    voltarParaAno();
+
+    if (!arquivoNotaFiscal) {
+      return alert("Por favor, anexe a Nota Fiscal.");
+    }
+    if (
+      !dadosNota.emitente ||
+      !dadosNota.valor ||
+      !dadosNota.data ||
+      !dadosNota.numero
+    ) {
+      // Se faltar dado, força o usuário a abrir a gaveta para arrumar
+      setShowFormulario(true);
+      return alert(
+        "Preencha todos os campos obrigatórios da nota antes de enviar.",
+      );
+    }
+
+    alert("Iniciando envio para o servidor...");
+
+    const formData = new FormData();
+
+    // ATENÇÃO: COLOQUE UUIDS REAIS AQUI PARA TESTAR
+    formData.append("parcelaId", "333e4567-e89b-12d3-a456-426614174000");
+    formData.append("usuarioId", "7545b48c-16db-448a-8dd0-24472b7ab0b5");
+    formData.append("dataCompetencia", "2026-08");
+
+    formData.append("emitente", dadosNota.emitente);
+    formData.append("valor", dadosNota.valor);
+    formData.append("dataEmissao", dadosNota.data);
+    formData.append("numero", dadosNota.numero);
+    formData.append("descricao", dadosNota.descricao);
+
+    formData.append("notaFiscal", arquivoNotaFiscal);
+
+    if (anexosExtras.length > 0) {
+      anexosExtras.forEach((anexo) => {
+        formData.append("anexosExtras", anexo);
+      });
+    }
+
+    try {
+      const response = await api.post("/despesas/com-anexos", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+
+      console.log("Despesa salva com sucesso:", response.data);
+      alert("Prestação de contas salva com sucesso!");
+
+      voltarParaAno();
+    } catch (error) {
+      console.error("Erro ao salvar despesa:", error);
+      alert("Erro ao enviar a prestação de contas. Verifique o console.");
+    }
   };
 
   const isLocked = !isEditing;
-  // Verifica se faltou algum dado na leitura
   const temPendenciaOCR =
     arquivoNotaFiscal &&
     (!dadosNota.emitente ||
@@ -198,7 +282,7 @@ export default function PortalInstrutor() {
               setUserRole(userRole === "INSTRUTOR" ? "ADMIN" : "INSTRUTOR");
               setIsEditing(userRole === "INSTRUTOR");
             }}
-            className="text-xs bg-slate-100 p-2 rounded mr-4"
+            className="text-xs bg-slate-100 p-2 rounded mr-4 border shadow-sm"
           >
             Modo: {userRole}
           </button>
@@ -238,7 +322,7 @@ export default function PortalInstrutor() {
           )}
         </div>
 
-        {/* PASTAS: ANOS E MESES */}
+        {/* PASTAS: ANOS */}
         {caminho.length === 0 && (
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
             {anos.map((ano) => (
@@ -256,6 +340,7 @@ export default function PortalInstrutor() {
           </div>
         )}
 
+        {/* PASTAS: MESES */}
         {caminho.length === 1 && (
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-6">
             {meses.map((mes) => (
@@ -273,9 +358,12 @@ export default function PortalInstrutor() {
           </div>
         )}
 
-        {/* ÁREA DE UPLOADS (Visível Lado a Lado) */}
+        {/* ÁREA DE UPLOADS E ENVIO */}
         {caminho.length === 2 && (
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 max-w-4xl mx-auto">
+          <form
+            onSubmit={handleConfirmarEnvio}
+            className="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 max-w-4xl mx-auto space-y-8"
+          >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* BLOCO 1: NOTA FISCAL */}
               {isLendoNota ? (
@@ -289,10 +377,11 @@ export default function PortalInstrutor() {
                 <div
                   className={`border-2 p-6 rounded-xl text-center flex flex-col items-center justify-center relative transition-colors ${temPendenciaOCR ? "border-amber-400 bg-amber-50" : "border-emerald-400 bg-emerald-50"}`}
                 >
-                  {/* Botão de Lápis */}
+                  {/* Botão de Lápis para abrir a gaveta */}
                   <button
+                    type="button"
                     onClick={() => setShowFormulario(!showFormulario)}
-                    className="absolute top-3 right-3 p-2 bg-white rounded-full shadow-sm hover:bg-slate-100 text-slate-700 transition"
+                    className="absolute top-3 right-3 p-2 bg-white rounded-full shadow-sm hover:bg-slate-100 text-slate-700 transition border"
                     title="Ver/Editar Dados"
                   >
                     <Edit2 className="w-4 h-4" />
@@ -321,10 +410,7 @@ export default function PortalInstrutor() {
 
                   <label className="text-xs text-blue-600 hover:underline mt-4 cursor-pointer">
                     Trocar arquivo
-                    <input
-                      type="file"
-                      accept=".pdf"
-                      onChange={handleArquivoSelecionado}
+                    <input type="file" accept=".pdf, image/*" onChange={handleArquivoSelecionado}
                       className="hidden"
                     />
                   </label>
@@ -333,8 +419,7 @@ export default function PortalInstrutor() {
                 <div className="border-2 border-dashed border-blue-300 bg-blue-50 hover:bg-blue-100 transition p-8 rounded-xl text-center flex flex-col items-center justify-center relative">
                   <input
                     type="file"
-                    accept=".pdf"
-                    onChange={handleArquivoSelecionado}
+                    <input type="file" accept=".pdf, image/*" onChange={handleArquivoSelecionado}
                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                   />
                   <UploadIcon />
@@ -347,17 +432,13 @@ export default function PortalInstrutor() {
                 </div>
               )}
 
-              {/* BLOCO 2: RELATÓRIOS EXTRAS (Acumulativo) */}
+              {/* BLOCO 2: RELATÓRIOS EXTRAS */}
               <div
                 className={`border-2 transition p-6 rounded-xl flex flex-col relative ${anexosExtras.length > 0 ? "border-solid border-slate-300 bg-slate-50" : "border-dashed border-slate-300 bg-slate-50 hover:bg-slate-100"}`}
               >
                 {anexosExtras.length === 0 ? (
                   <div className="text-center flex flex-col items-center justify-center h-full">
-                    <input
-                      type="file"
-                      multiple
-                      accept=".pdf,.jpg,.png"
-                      onChange={handleAnexosExtras}
+                    <input type="file" multiple accept=".pdf, image/*" onChange={handleAnexosExtras}
                       className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                     />
                     <FileText className="w-10 h-10 text-slate-400 mb-3" />
@@ -373,7 +454,6 @@ export default function PortalInstrutor() {
                     <h3 className="font-semibold text-slate-700 mb-3 flex items-center gap-2">
                       <FileText className="w-5 h-5" /> Arquivos Adicionados
                     </h3>
-                    {/* Lista de Arquivos */}
                     <ul className="flex-1 overflow-y-auto max-h-32 space-y-2 mb-4 pr-1">
                       {anexosExtras.map((f, i) => (
                         <li
@@ -384,6 +464,7 @@ export default function PortalInstrutor() {
                             {f.name}
                           </span>
                           <button
+                            type="button"
                             onClick={() => removerAnexo(i)}
                             className="text-red-400 hover:text-red-600"
                           >
@@ -392,16 +473,15 @@ export default function PortalInstrutor() {
                         </li>
                       ))}
                     </ul>
-                    {/* Botão de + Adicionar Mais */}
                     <div className="relative mt-auto">
-                      <button className="w-full py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 font-medium rounded transition flex items-center justify-center gap-2">
+                      <button
+                        type="button"
+                        className="w-full py-2 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 font-medium rounded transition flex items-center justify-center gap-2"
+                      >
                         <Plus className="w-4 h-4" /> Adicionar mais
                       </button>
-                      <input
-                        type="file"
-                        multiple
-                        accept=".pdf,.jpg,.png"
-                        onChange={handleAnexosExtras}
+                      <input type="file" multiple accept=".pdf, image/*" onChange={handleAnexosExtras}
+        
                         className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                       />
                     </div>
@@ -410,9 +490,9 @@ export default function PortalInstrutor() {
               </div>
             </div>
 
-            {/* A GAVETA COM OS DADOS DA NOTA (Mostrada ao clicar no lápis) */}
+            {/* A GAVETA COM OS DADOS (Aberta apenas se clicar no lápis ou se der erro) */}
             {showFormulario && arquivoNotaFiscal && (
-              <div className="mt-8 pt-6 border-t border-slate-200 animate-in fade-in slide-in-from-top-4 duration-300">
+              <div className="pt-6 border-t border-slate-200 animate-in fade-in slide-in-from-top-4 duration-300">
                 <div className="flex justify-between items-center mb-6">
                   <h3 className="text-lg font-semibold text-slate-800">
                     Dados Extraídos da Nota
@@ -421,14 +501,14 @@ export default function PortalInstrutor() {
                     <button
                       type="button"
                       onClick={() => setIsEditing(true)}
-                      className="flex items-center gap-2 text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 py-2 px-4 rounded-lg transition font-medium border"
+                      className="flex items-center gap-2 text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 py-2 px-4 rounded-lg transition font-medium border shadow-sm"
                     >
                       <Edit2 className="w-4 h-4" /> Destravar para Edição
                     </button>
                   )}
                 </div>
 
-                <form onSubmit={handleConfirmarEnvio} className="space-y-4">
+                <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="col-span-2">
                       <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -507,18 +587,23 @@ export default function PortalInstrutor() {
                       />
                     </div>
                   </div>
-
-                  <button
-                    type="submit"
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-lg transition-colors mt-6 flex justify-center items-center gap-2 shadow-sm"
-                  >
-                    <CheckCircle className="w-5 h-5" /> Enviar Prestação
-                    Definitiva
-                  </button>
-                </form>
+                </div>
               </div>
             )}
-          </div>
+
+            {/* BOTÃO GLOBAL DE ENVIO (Sempre visível se houver nota anexada) */}
+            {arquivoNotaFiscal && (
+              <div className="pt-6 border-t border-slate-200 mt-6">
+                <button
+                  type="submit"
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-4 rounded-xl transition-colors flex justify-center items-center gap-2 shadow-md text-lg"
+                >
+                  <CheckCircle className="w-6 h-6" /> Confirmar e Enviar
+                  Prestação Definitiva
+                </button>
+              </div>
+            )}
+          </form>
         )}
       </main>
     </div>
