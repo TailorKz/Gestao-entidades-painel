@@ -13,7 +13,7 @@ export default function PainelGestor() {
   const [abaAtiva, setAbaAtiva] = useState('ESPORTE');
   const [showModal, setShowModal] = useState(false);
   const [novoUsuario, setNovoUsuario] = useState({
-    nome: '', email: '', login: '', senha: '', categoria: 'ESPORTE'
+    nome: '', observacoes: '', login: '', senha: '', categoria: 'ESPORTE'
   });
 
   // Estados da Visão Detalhada (Pasta do Instrutor)
@@ -53,7 +53,7 @@ export default function PainelGestor() {
       await api.post('/usuarios', payload);
       alert("Instrutor cadastrado com sucesso!");
       setShowModal(false);
-      setNovoUsuario({ nome: '', email: '', login: '', senha: '', categoria: 'ESPORTE' });
+      setNovoUsuario({ nome: '', observacoes: '', login: '', senha: '', categoria: 'ESPORTE' });
       carregarInstrutores();
     } catch (error) {
       alert("Erro ao cadastrar: " + (error.response?.data || "Verifique os dados."));
@@ -246,10 +246,21 @@ export default function PainelGestor() {
                 <label className="block text-xs font-medium text-slate-700 mb-1.5">Nome Completo</label>
                 <input required type="text" className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm outline-none focus:ring-2 focus:ring-sky-500/40 focus:border-sky-600" value={novoUsuario.nome} onChange={e => setNovoUsuario({...novoUsuario, nome: e.target.value})} />
               </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1.5">E-mail Profissional</label>
-                <input required type="email" className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm outline-none focus:ring-2 focus:ring-sky-500/40 focus:border-sky-600" value={novoUsuario.email} onChange={e => setNovoUsuario({...novoUsuario, email: e.target.value})} />
-              </div>
+              <div className="col-span-2">
+            <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase">
+                Observações e Dados Bancários (Criptografado)
+            </label>
+            <textarea 
+                rows="3"
+                placeholder="Ex: Chave PIX, Banco, Agência, Conta, CPF..."
+                className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm outline-none focus:ring-2 focus:ring-sky-500/40 focus:border-sky-500 resize-none bg-slate-50" 
+                value={dadosInstrutor.observacoes} 
+                onChange={e => setDadosInstrutor({...dadosInstrutor, observacoes: e.target.value})} 
+            />
+            <p className="text-[10px] text-emerald-600 font-medium mt-1 flex items-center gap-1">
+                🔒 Estes dados são salvos de forma segura.
+            </p>
+        </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-slate-700 mb-1.5">Login</label>
