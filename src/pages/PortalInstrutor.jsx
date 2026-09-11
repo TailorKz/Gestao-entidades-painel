@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState, useEffect } from "react";
 import { api } from "../services/api";
 import {
   Edit2,
@@ -11,25 +11,37 @@ import {
   UploadCloud,
   Loader2,
   LogOut,
+  CalendarDays,
+  Wallet,
+  ShieldCheck,
+  Activity,
+  Music,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
-const heading = { fontFamily: "'Poppins', sans-serif" };
+const heading = { fontFamily: "'Varela Round', sans-serif" };
+
+const TODOS_OS_MESES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
 export default function PortalInstrutor() {
   const navigate = useNavigate();
 
-  // Puxa o nome de quem logou (ou escreve "Instrutor" se falhar)
   const userName = localStorage.getItem("usuarioNome") || "Instrutor";
   const userInitials = userName.charAt(0).toUpperCase();
+  const minhaCategoria = localStorage.getItem("usuarioCategoria") || "ESPORTE";
+  const IconeSetor = minhaCategoria === "ESPORTE" ? Activity : Music;
 
   const handleLogout = () => {
     localStorage.clear();
     navigate("/");
   };
-  const [caminho, setCaminho] = useState([]);
 
-  // Simulação de Perfil
+  // Fluxo de pastas baseado em parcelas reais
+  const [parcelas, setParcelas] = useState([]);
+  const [carregandoParcelas, setCarregandoParcelas] = useState(true);
+  const [parcelaSelecionada, setParcelaSelecionada] = useState(null);
+  const [mesSelecionado, setMesSelecionado] = useState(null);
+
   const [isEditing, setIsEditing] = useState(false);
 
   // Estados do Motor de OCR
@@ -48,25 +60,38 @@ export default function PortalInstrutor() {
   const [arquivoNotaFiscal, setArquivoNotaFiscal] = useState(null);
   const [anexosExtras, setAnexosExtras] = useState([]);
 
-  const anos = ["2025", "2026"];
-  const meses = [
-    "Janeiro",
-    "Fevereiro",
-    "Março",
-    "Abril",
-    "Maio",
-    "Junho",
-    "Julho",
-    "Agosto",
-  ];
+  const carregarParcelas = async () => {
+    setCarregandoParcelas(true);
+    try {
+      const params = minhaCategoria && minhaCategoria !== 'N/A' ? { categoria: minhaCategoria } : {};
+      const res = await api.get("/parcelas", { params });
+      setParcelas(res.data);
+    } catch (error) {
+      console.error("Erro ao carregar parcelas:", error);
+    } finally {
+      setCarregandoParcelas(false);
+    }
+  };
 
-  const entrarNaPasta = (pasta) => setCaminho([...caminho, pasta]);
-  const voltarParaRaiz = () => {
-    setCaminho([]);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    carregarParcelas();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const entrarNaParcela = (parcela) => {
+    setParcelaSelecionada(parcela);
     resetarFluxoUpload();
   };
-  const voltarParaAno = () => {
-    setCaminho([caminho[0]]);
+
+  const voltarParaParcelas = () => {
+    setParcelaSelecionada(null);
+    setMesSelecionado(null);
+    resetarFluxoUpload();
+  };
+
+  const voltarParaMeses = () => {
+    setMesSelecionado(null);
     resetarFluxoUpload();
   };
 
@@ -75,27 +100,26 @@ export default function PortalInstrutor() {
     setAnexosExtras([]);
     setShowFormulario(false);
     setIsEditing(false);
+    setMesSelecionado(null);
   };
 
-  const limite30MB = 30 * 1024 * 1024; // 30 MB em bytes
+  const mesesDaParcela = parcelaSelecionada?.mesesReferencia
+      ? parcelaSelecionada.mesesReferencia.split(", ").filter(m => TODOS_OS_MESES.includes(m))
+      : [];
+
+  const limite30MB = 30 * 1024 * 1024;
 
   const handleArquivoSelecionado = async (e) => {
     const arquivo = e.target.files[0];
     if (!arquivo) return;
 
-    // --- TRAVA DE UX ---
     if (arquivo.size > limite30MB) {
-      return alert(
-        "O arquivo excedeu o limite de 30MB. Reduza o tamanho ou divida em partes.",
-      );
+      return alert("O arquivo excedeu o limite de 30MB. Reduza o tamanho ou divida em partes.");
     }
     const nome = arquivo.name.toLowerCase();
     if (nome.endsWith(".doc") || nome.endsWith(".docx")) {
-      return alert(
-        "Documentos Word não são aceitos pelo sistema do INDACI. Por favor, salve como PDF.",
-      );
+      return alert("Documentos Word não são aceitos pelo sistema. Por favor, salve como PDF.");
     }
-    // ------------------------
 
     setArquivoNotaFiscal(arquivo);
     setIsLendoNota(true);
@@ -125,48 +149,31 @@ export default function PortalInstrutor() {
       });
     } catch (error) {
       console.error("Erro na leitura do OCR:", error);
-      setDadosNota({
-        emitente: "",
-        valor: "",
-        data: "",
-        numero: "",
-        descricao: "",
-      });
+      setDadosNota({ emitente: "", valor: "", data: "", numero: "", descricao: "" });
     } finally {
       setIsLendoNota(false);
     }
   };
 
   const handleAnexosExtras = (e) => {
-    const limite30MB = 30 * 1024 * 1024; // 30 MB
-
-    // 1. Pega todos os arquivos que o instrutor selecionou de uma vez
     const files = Array.from(e.target.files);
 
-    // 2. Filtra a lista, deixando passar apenas os permitidos
     const arquivosValidos = files.filter((arquivo) => {
       const nome = arquivo.name.toLowerCase();
 
-      // Regra 1: Bloqueia Word
       if (nome.endsWith(".doc") || nome.endsWith(".docx")) {
-        alert(
-          `O arquivo "${arquivo.name}" foi recusado. Documentos Word não são aceitos, salve como PDF.`,
-        );
-        return false; // Remove da lista
+        alert(`O arquivo "${arquivo.name}" foi recusado. Documentos Word não são aceitos, salve como PDF.`);
+        return false;
       }
 
-      // Regra 2: Bloqueia maiores que 30MB
       if (arquivo.size > limite30MB) {
-        alert(
-          `O arquivo "${arquivo.name}" excedeu o limite de 30MB e foi recusado.`,
-        );
-        return false; // Remove da lista
+        alert(`O arquivo "${arquivo.name}" excedeu o limite de 30MB e foi recusado.`);
+        return false;
       }
 
       return true;
     });
 
-    // 3. Adiciona no estado apenas os arquivos que passaram do filtro
     setAnexosExtras([...anexosExtras, ...arquivosValidos]);
   };
 
@@ -182,27 +189,18 @@ export default function PortalInstrutor() {
     if (!arquivoNotaFiscal) {
       return alert("Por favor, anexe a Nota Fiscal.");
     }
-    if (
-      !dadosNota.emitente ||
-      !dadosNota.valor ||
-      !dadosNota.data ||
-      !dadosNota.numero
-    ) {
-      // Se faltar dado, força o usuário a abrir a gaveta para arrumar
+    if (!dadosNota.emitente || !dadosNota.valor || !dadosNota.data || !dadosNota.numero) {
       setShowFormulario(true);
-      return alert(
-        "Preencha todos os campos obrigatórios da nota antes de enviar.",
-      );
+      return alert("Preencha todos os campos obrigatórios da nota antes de enviar.");
     }
 
-    alert("Iniciando envio para o servidor...");
+    const numeroMes = String(TODOS_OS_MESES.indexOf(mesSelecionado) + 1).padStart(2, "0");
+    const competencia = `${parcelaSelecionada.anoVigencia}-${numeroMes}`;
 
     const formData = new FormData();
-
-    // ATENÇÃO: COLOQUE UUIDS REAIS AQUI PARA TESTAR
-    formData.append("parcelaId", "333e4567-e89b-12d3-a456-426614174000");
+    formData.append("parcelaId", parcelaSelecionada.id);
     formData.append("usuarioId", localStorage.getItem("usuarioId"));
-    formData.append("dataCompetencia", "2026-08");
+    formData.append("dataCompetencia", competencia);
 
     formData.append("emitente", dadosNota.emitente);
     formData.append("valor", dadosNota.valor);
@@ -226,51 +224,48 @@ export default function PortalInstrutor() {
       console.log("Despesa salva com sucesso:", response.data);
       alert("Prestação de contas salva com sucesso!");
 
-      voltarParaAno();
+      voltarParaParcelas();
     } catch (error) {
       console.error("Erro ao salvar despesa:", error);
-      alert("Erro ao enviar a prestação de contas. Verifique o console.");
+      alert(error.response?.data || "Erro ao enviar a prestação de contas. Verifique o console.");
     }
   };
 
   const isLocked = !isEditing;
   const temPendenciaOCR =
     arquivoNotaFiscal &&
-    (!dadosNota.emitente ||
-      !dadosNota.valor ||
-      !dadosNota.data ||
-      !dadosNota.numero);
+    (!dadosNota.emitente || !dadosNota.valor || !dadosNota.data || !dadosNota.numero);
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
-      <header className="bg-slate-900">
-        <div className="max-w-5xl mx-auto px-8 h-14 flex justify-between items-center">
-          <div>
-            <h1
-              style={heading}
-              className="text-sm font-semibold text-white tracking-wide"
-            >
-              Área do Instrutor
-            </h1>
-            <p className="text-[11px] text-slate-400">
-              Vinculado à{" "}
-              <span className="text-sky-400 font-medium">INDACI</span>
-            </p>
+    <div className="min-h-screen bg-warm flex flex-col">
+      {/* CABEÇALHO AMIGÁVEL */}
+      <header className="bg-cream-50 border-b border-cream-200 sticky top-0 z-40">
+        <div className="max-w-5xl mx-auto px-8 h-16 flex justify-between items-center">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-brand-700 text-white flex items-center justify-center shadow-sm">
+              <ShieldCheck className="w-5 h-5" />
+            </div>
+            <div>
+              <h1 style={heading} className="text-base text-stone-800 leading-tight">
+                Área do Instrutor
+              </h1>
+              <p className="text-[11px] text-stone-500 leading-tight">
+                Vinculado ao{" "}
+                <span className="font-medium text-brand-700">INDACI</span>
+                <span className="inline-flex items-center gap-1 ml-1.5 text-stone-400">
+                  <IconeSetor className="w-3 h-3" /> {minhaCategoria === 'ESPORTE' ? 'Esporte' : 'Cultura'}
+                </span>
+              </p>
+            </div>
           </div>
           <div className="flex items-center gap-3">
-            {/* Divisória sutil */}
-            <div className="h-5 w-px bg-slate-700 mx-1"></div>
-
-            {/* Perfil Real */}
-            <span className="text-xs text-slate-400">{userName}</span>
-            <div className="w-7 h-7 rounded-full bg-sky-600 text-white flex items-center justify-center text-xs font-semibold">
+            <span className="text-xs text-stone-500 font-medium">{userName}</span>
+            <div className="w-8 h-8 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center text-xs font-bold">
               {userInitials}
             </div>
-
-            {/* Botão de Logout */}
             <button
               onClick={handleLogout}
-              className="ml-1 p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-md transition-colors"
+              className="ml-1 p-2 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
               title="Sair do Portal"
             >
               <LogOut className="w-4 h-4" />
@@ -278,249 +273,187 @@ export default function PortalInstrutor() {
           </div>
         </div>
       </header>
-      <div className="h-[3px] bg-gradient-to-r from-sky-500 via-sky-600 to-slate-900" />
 
       <main className="flex-1 max-w-5xl w-full mx-auto p-8">
-        <div className="flex items-center gap-2 mb-7 text-sm font-medium text-slate-500">
-          <button
-            onClick={voltarParaRaiz}
-            className="hover:text-sky-700 transition-colors"
-          >
+        <div className="flex items-center gap-2 mb-7 text-sm font-medium text-stone-500">
+          <button onClick={voltarParaParcelas} className="hover:text-brand-700 transition-colors">
             Prestação de Contas
           </button>
-          {caminho.length > 0 && (
+          {parcelaSelecionada && (
             <>
-              <span className="text-slate-300">/</span>
-              <button
-                onClick={voltarParaAno}
-                className="hover:text-sky-700 transition-colors"
-              >
-                {caminho[0]}
+              <span className="text-stone-300">/</span>
+              <button onClick={voltarParaMeses} className="hover:text-brand-700 transition-colors">
+                Parcela 0{parcelaSelecionada.numero} ({parcelaSelecionada.anoVigencia})
               </button>
             </>
           )}
-          {caminho.length > 1 && (
+          {parcelaSelecionada && mesSelecionado && (
             <>
-              <span className="text-slate-300">/</span>
-              <span className="text-slate-900">{caminho[1]}</span>
+              <span className="text-stone-300">/</span>
+              <span className="text-stone-900">{mesSelecionado}</span>
             </>
           )}
         </div>
 
-        {/* PASTAS: ANOS */}
-        {caminho.length === 0 && (
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {anos.map((ano) => (
-              <button
-                key={ano}
-                onClick={() => entrarNaPasta(ano)}
-                className="bg-sky-50/60 border border-sky-100 p-8 rounded-md hover:border-sky-300 hover:bg-sky-50 hover:shadow-md hover:-translate-y-1 transition-all duration-200 flex flex-col items-center group"
-              >
-                <Folder
-                  className="w-14 h-14 text-sky-300 group-hover:text-sky-500 group-hover:scale-110 group-hover:-rotate-2 transition-all duration-200 mb-3"
-                  strokeWidth={1.5}
-                />
-                <span className="text-slate-700 font-medium text-sm group-hover:text-slate-900">
-                  {ano}
-                </span>
-              </button>
-            ))}
+        {/* PASSO 1: ESCOLHER A PARCELA */}
+        {!parcelaSelecionada && (
+          <div>
+            <div className="flex items-center gap-2 mb-5">
+              <Wallet className="w-5 h-5 text-brand-700" />
+              <h2 style={heading} className="text-xl text-stone-900">
+                Escolha a parcela para prestar contas
+              </h2>
+            </div>
+
+            {carregandoParcelas ? (
+              <div className="flex justify-center py-16 text-stone-400">
+                <Loader2 className="w-8 h-8 animate-spin" />
+              </div>
+            ) : parcelas.length === 0 ? (
+              <div className="text-center py-16 border border-dashed border-cream-200 rounded-2xl bg-white text-sm text-stone-500">
+                Nenhuma parcela liberada para prestação de contas no momento.
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {parcelas.map((parcela) => (
+                  <button
+                    key={parcela.id}
+                    onClick={() => entrarNaParcela(parcela)}
+                    className="bg-white border border-cream-200 p-6 rounded-2xl hover:border-brand-300 hover:shadow-md transition-all flex flex-col items-center group"
+                  >
+                    <Folder className="w-12 h-12 text-brand-200 group-hover:text-brand-500 group-hover:scale-110 group-hover:-rotate-2 transition-all duration-200 mb-3" strokeWidth={1.5} />
+                    <span className="text-stone-700 font-semibold text-sm group-hover:text-stone-900">
+                      Parcela 0{parcela.numero}
+                    </span>
+                    <span className="text-xs text-stone-400 mt-1">
+                      {parcela.anoVigencia} · Parcelas abertas
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
-        {/* PASTAS: MESES */}
-        {caminho.length === 1 && (
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-3">
-            {meses.map((mes) => (
-              <button
-                key={mes}
-                onClick={() => entrarNaPasta(mes)}
-                className="bg-white border border-slate-200 p-5 rounded-md hover:border-sky-300 hover:shadow-sm transition-all flex flex-col items-center group"
-              >
-                <Folder
-                  className="w-8 h-8 text-slate-300 group-hover:text-sky-600 transition-colors mb-2.5"
-                  strokeWidth={1.5}
-                />
-                <span className="text-slate-700 font-medium text-sm group-hover:text-slate-900">
-                  {mes}
-                </span>
-              </button>
-            ))}
+        {/* PASSO 2: ESCOLHER O MÊS DE COMPETÊNCIA */}
+        {parcelaSelecionada && !mesSelecionado && (
+          <div>
+            <div className="flex items-center gap-2 mb-5">
+              <CalendarDays className="w-5 h-5 text-brand-700" />
+              <h2 style={heading} className="text-xl text-stone-900">
+                Parcela 0{parcelaSelecionada.numero} — escolha o mês de competência
+              </h2>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+              {(mesesDaParcela.length > 0 ? mesesDaParcela : TODOS_OS_MESES).map((mes) => (
+                <button
+                  key={mes}
+                  onClick={() => setMesSelecionado(mes)}
+                  className="bg-white border border-cream-200 p-5 rounded-2xl hover:border-brand-300 hover:shadow-sm transition-all flex flex-col items-center group"
+                >
+                  <Folder className="w-8 h-8 text-stone-300 group-hover:text-brand-600 transition-colors mb-2.5" strokeWidth={1.5} />
+                  <span className="text-stone-700 font-semibold text-sm group-hover:text-stone-900">
+                    {mes}
+                  </span>
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
-        {/* ÁREA DE UPLOADS E ENVIO */}
-        {caminho.length === 2 && (
-          <form
-            onSubmit={handleConfirmarEnvio}
-            className="bg-white rounded-md border border-slate-200 p-7 max-w-4xl mx-auto space-y-7"
-          >
+        {/* PASSO 3: UPLOADS E ENVIO */}
+        {parcelaSelecionada && mesSelecionado && (
+          <form onSubmit={handleConfirmarEnvio} className="bg-white rounded-2xl border border-cream-200 p-7 max-w-4xl mx-auto space-y-7 shadow-sm">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* BLOCO 1: NOTA FISCAL */}
               {isLendoNota ? (
-                <div className="border border-slate-200 bg-slate-50 p-7 rounded-md text-center flex flex-col items-center justify-center">
-                  <Loader2 className="w-7 h-7 text-sky-600 animate-spin mb-3" />
-                  <h3 className="font-medium text-sm text-slate-700">
-                    Lendo PDF...
-                  </h3>
+                <div className="border border-cream-200 bg-cream-50 p-7 rounded-2xl text-center flex flex-col items-center justify-center">
+                  <Loader2 className="w-7 h-7 text-brand-700 animate-spin mb-3" />
+                  <h3 className="font-semibold text-sm text-stone-700">Lendo PDF...</h3>
                 </div>
               ) : arquivoNotaFiscal ? (
-                <div
-                  className={`border p-5 rounded-md text-center flex flex-col items-center justify-center relative transition-colors ${temPendenciaOCR ? "border-amber-200 bg-amber-50" : "border-emerald-200 bg-emerald-50"}`}
-                >
-                  {/* Botão de Lápis para abrir a gaveta */}
+                <div className={`border p-5 rounded-2xl text-center flex flex-col items-center justify-center relative transition-colors ${temPendenciaOCR ? "border-amber-200 bg-amber-50" : "border-emerald-200 bg-emerald-50"}`}>
                   <button
                     type="button"
                     onClick={() => setShowFormulario(!showFormulario)}
-                    className="absolute top-3 right-3 p-1.5 bg-white rounded-md hover:bg-slate-50 text-slate-500 transition-colors border border-slate-200"
+                    className="absolute top-3 right-3 p-1.5 bg-white rounded-xl hover:bg-cream-50 text-stone-500 transition-colors border border-cream-200"
                     title="Ver/Editar Dados"
                   >
                     <Edit2 className="w-3.5 h-3.5" />
                   </button>
 
                   {temPendenciaOCR ? (
-                    <AlertTriangle
-                      className="w-8 h-8 text-amber-500 mb-2.5"
-                      strokeWidth={1.5}
-                    />
+                    <AlertTriangle className="w-8 h-8 text-amber-500 mb-2.5" strokeWidth={1.5} />
                   ) : (
-                    <CheckCircle2
-                      className="w-8 h-8 text-emerald-600 mb-2.5"
-                      strokeWidth={1.5}
-                    />
+                    <CheckCircle2 className="w-8 h-8 text-emerald-600 mb-2.5" strokeWidth={1.5} />
                   )}
 
-                  <h3
-                    className={`font-medium text-sm ${temPendenciaOCR ? "text-amber-900" : "text-emerald-900"}`}
-                  >
-                    Nota Anexada
-                  </h3>
-                  <p className="text-xs mt-1 truncate max-w-[200px] text-slate-500">
-                    {arquivoNotaFiscal.name}
-                  </p>
+                  <h3 className={`font-semibold text-sm ${temPendenciaOCR ? "text-amber-900" : "text-emerald-900"}`}>Nota Anexada</h3>
+                  <p className="text-xs mt-1 truncate max-w-[200px] text-stone-500">{arquivoNotaFiscal.name}</p>
 
                   {temPendenciaOCR && (
-                    <span className="mt-2 text-[11px] font-medium text-amber-700 bg-amber-100 border border-amber-200 px-2 py-0.5 rounded uppercase tracking-wide">
+                    <span className="mt-2 text-[11px] font-medium text-amber-700 bg-amber-100 border border-amber-200 px-2 py-0.5 rounded-full uppercase tracking-wide">
                       Clique no lápis para corrigir
                     </span>
                   )}
 
-                  <label className="text-xs text-sky-700 hover:text-sky-800 hover:underline mt-3.5 cursor-pointer">
+                  <label className="text-xs text-brand-700 hover:text-brand-800 hover:underline mt-3.5 cursor-pointer">
                     Trocar arquivo
-                    <input
-                      type="file"
-                      accept=".pdf, image/*"
-                      onChange={handleArquivoSelecionado}
-                      className="hidden"
-                    />
+                    <input type="file" accept=".pdf, image/*" onChange={handleArquivoSelecionado} className="hidden" />
                   </label>
                 </div>
               ) : (
-                <div className="border border-dashed border-slate-300 bg-slate-50 hover:bg-slate-100 hover:border-sky-400 transition-colors p-7 rounded-md text-center flex flex-col items-center justify-center relative">
-                  <input
-                    type="file"
-                    accept=".pdf, image/*"
-                    onChange={handleArquivoSelecionado}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                  />
-                  <UploadCloud
-                    className="w-8 h-8 text-slate-400 mb-2.5"
-                    strokeWidth={1.5}
-                  />
-                  <h3 className="font-medium text-sm text-slate-700">
-                    1. Nota Fiscal
-                  </h3>
-                  <p className="text-xs text-slate-500 mt-1">
-                    Arraste o PDF aqui
-                  </p>
+                <div className="border border-dashed border-cream-200 bg-cream-50 hover:bg-cream-100 hover:border-brand-400 transition-colors p-7 rounded-2xl text-center flex flex-col items-center justify-center relative">
+                  <input type="file" accept=".pdf, image/*" onChange={handleArquivoSelecionado} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                  <UploadCloud className="w-8 h-8 text-brand-300 mb-2.5" strokeWidth={1.5} />
+                  <h3 className="font-semibold text-sm text-stone-700">1. Nota Fiscal</h3>
+                  <p className="text-xs text-stone-500 mt-1">Arraste o PDF aqui</p>
                 </div>
               )}
 
               {/* BLOCO 2: RELATÓRIOS EXTRAS */}
-              <div
-                className={`border transition-colors p-5 rounded-md flex flex-col relative ${anexosExtras.length > 0 ? "border-slate-200 bg-slate-50" : "border-dashed border-slate-300 bg-slate-50 hover:bg-slate-100 hover:border-sky-400"}`}
-              >
+              <div className={`border transition-colors p-5 rounded-2xl flex flex-col relative ${anexosExtras.length > 0 ? "border-cream-200 bg-cream-50" : "border-dashed border-cream-200 bg-cream-50 hover:bg-cream-100 hover:border-brand-400"}`}>
                 {anexosExtras.length === 0 ? (
                   <div className="text-center flex flex-col items-center justify-center h-full">
-                    <input
-                      type="file"
-                      multiple
-                      accept=".pdf, image/*"
-                      onChange={handleAnexosExtras}
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                    />
-                    <FileText
-                      className="w-8 h-8 text-slate-400 mb-2.5"
-                      strokeWidth={1.5}
-                    />
-                    <h3 className="font-medium text-sm text-slate-700">
-                      2. Relatórios Extras
-                    </h3>
-                    <p className="text-xs text-slate-500 mt-1">
-                      Listas de presença, recibos...
-                    </p>
+                    <input type="file" multiple accept=".pdf, image/*" onChange={handleAnexosExtras} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                    <FileText className="w-8 h-8 text-brand-300 mb-2.5" strokeWidth={1.5} />
+                    <h3 className="font-semibold text-sm text-stone-700">2. Relatórios Extras</h3>
+                    <p className="text-xs text-stone-500 mt-1">Listas de presença, recibos...</p>
                   </div>
                 ) : (
                   <div className="flex flex-col h-full">
-                    <h3 className="text-sm font-medium text-slate-700 mb-2.5 flex items-center gap-2">
-                      <FileText className="w-4 h-4 text-slate-400" /> Arquivos
-                      Adicionados
+                    <h3 className="text-sm font-semibold text-stone-700 mb-2.5 flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-stone-400" /> Arquivos Adicionados
                     </h3>
                     <ul className="flex-1 overflow-y-auto max-h-32 space-y-1.5 mb-3.5 pr-1">
                       {anexosExtras.map((f, i) => (
-                        <li
-                          key={i}
-                          className="flex justify-between items-center bg-white px-3 py-2 rounded-md border border-slate-200 text-xs"
-                        >
-                          <span className="truncate max-w-[150px] text-slate-700 font-medium">
-                            {f.name}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => removerAnexo(i)}
-                            className="text-slate-400 hover:text-red-600 transition-colors"
-                          >
+                        <li key={i} className="flex justify-between items-center bg-white px-3 py-2 rounded-xl border border-cream-200 text-xs">
+                          <span className="truncate max-w-[150px] text-stone-700 font-semibold">{f.name}</span>
+                          <button type="button" onClick={() => removerAnexo(i)} className="text-stone-400 hover:text-red-600 transition-colors">
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </li>
                       ))}
                     </ul>
                     <div className="relative mt-auto">
-                      <button
-                        type="button"
-                        className="w-full py-2 bg-white text-sky-700 hover:bg-sky-50 border border-slate-200 text-sm font-medium rounded-md transition-colors flex items-center justify-center gap-2"
-                      >
+                      <button type="button" className="w-full py-2 bg-white text-brand-700 hover:bg-brand-50 border border-cream-200 text-sm font-semibold rounded-xl transition-colors flex items-center justify-center gap-2">
                         <Plus className="w-4 h-4" /> Adicionar mais
                       </button>
-                      <input
-                        type="file"
-                        multiple
-                        accept=".pdf, image/*"
-                        onChange={handleAnexosExtras}
-                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                      />
+                      <input type="file" multiple accept=".pdf, image/*" onChange={handleAnexosExtras} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
                     </div>
                   </div>
                 )}
               </div>
             </div>
 
-            {/* A GAVETA COM OS DADOS (Aberta apenas se clicar no lápis ou se der erro) */}
+            {/* A GAVETA COM OS DADOS */}
             {showFormulario && arquivoNotaFiscal && (
-              <div className="pt-6 border-t border-slate-200 animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="pt-6 border-t border-cream-200 animate-in fade-in slide-in-from-top-2 duration-200">
                 <div className="flex justify-between items-center mb-5">
-                  <h3
-                    style={heading}
-                    className="text-sm font-semibold text-slate-900"
-                  >
-                    Dados Extraídos da Nota
-                  </h3>
+                  <h3 style={heading} className="text-sm text-stone-900">Dados Extraídos da Nota</h3>
                   {!isEditing && (
-                    <button
-                      type="button"
-                      onClick={() => setIsEditing(true)}
-                      className="flex items-center gap-2 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 py-1.5 px-3 rounded-md transition-colors border border-slate-200 font-medium"
-                    >
+                    <button type="button" onClick={() => setIsEditing(true)} className="flex items-center gap-2 text-xs bg-cream-100 hover:bg-cream-200 text-stone-700 py-1.5 px-3 rounded-xl transition-colors border border-cream-200 font-semibold">
                       <Edit2 className="w-3.5 h-3.5" /> Destravar para Edição
                     </button>
                   )}
@@ -529,95 +462,35 @@ export default function PortalInstrutor() {
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="col-span-2">
-                      <label className="block text-xs font-medium text-slate-700 mb-1.5">
-                        Emitente / Fornecedor
-                      </label>
-                      <input
-                        type="text"
-                        disabled={isLocked}
-                        className={`w-full px-3 py-2 border rounded-md text-sm outline-none ${isLocked ? "bg-slate-50 text-slate-500" : "focus:ring-2 focus:ring-sky-500/40 focus:border-sky-600"} ${!dadosNota.emitente && !isLocked ? "border-red-300 bg-red-50" : "border-slate-300"}`}
-                        value={dadosNota.emitente}
-                        onChange={(e) =>
-                          setDadosNota({
-                            ...dadosNota,
-                            emitente: e.target.value,
-                          })
-                        }
-                      />
+                      <label className="block text-xs font-medium text-stone-700 mb-1.5">Emitente / Fornecedor</label>
+                      <input type="text" disabled={isLocked} className={`w-full px-3 py-2 border rounded-xl text-sm outline-none ${isLocked ? "bg-cream-50 text-stone-500" : "focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500"} ${!dadosNota.emitente && !isLocked ? "border-red-300 bg-red-50" : "border-cream-200"}`} value={dadosNota.emitente} onChange={(e) => setDadosNota({ ...dadosNota, emitente: e.target.value })} />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-slate-700 mb-1.5">
-                        Valor (R$)
-                      </label>
-                      <input
-                        type="text"
-                        disabled={isLocked}
-                        className={`w-full px-3 py-2 border rounded-md text-sm outline-none font-medium ${isLocked ? "bg-slate-50 text-slate-500" : "focus:ring-2 focus:ring-sky-500/40 focus:border-sky-600"} ${!dadosNota.valor && !isLocked ? "border-red-300 bg-red-50" : "border-slate-300"}`}
-                        value={dadosNota.valor}
-                        onChange={(e) =>
-                          setDadosNota({ ...dadosNota, valor: e.target.value })
-                        }
-                      />
+                      <label className="block text-xs font-medium text-stone-700 mb-1.5">Valor (R$)</label>
+                      <input type="text" disabled={isLocked} className={`w-full px-3 py-2 border rounded-xl text-sm outline-none font-medium ${isLocked ? "bg-cream-50 text-stone-500" : "focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500"} ${!dadosNota.valor && !isLocked ? "border-red-300 bg-red-50" : "border-cream-200"}`} value={dadosNota.valor} onChange={(e) => setDadosNota({ ...dadosNota, valor: e.target.value })} />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-slate-700 mb-1.5">
-                        Data da Nota
-                      </label>
-                      <input
-                        type="date"
-                        disabled={isLocked}
-                        className={`w-full px-3 py-2 border rounded-md text-sm outline-none ${isLocked ? "bg-slate-50 text-slate-500" : "focus:ring-2 focus:ring-sky-500/40 focus:border-sky-600"} ${!dadosNota.data && !isLocked ? "border-red-300 bg-red-50" : "border-slate-300"}`}
-                        value={dadosNota.data}
-                        onChange={(e) =>
-                          setDadosNota({ ...dadosNota, data: e.target.value })
-                        }
-                      />
+                      <label className="block text-xs font-medium text-stone-700 mb-1.5">Data da Nota</label>
+                      <input type="date" disabled={isLocked} className={`w-full px-3 py-2 border rounded-xl text-sm outline-none ${isLocked ? "bg-cream-50 text-stone-500" : "focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500"} ${!dadosNota.data && !isLocked ? "border-red-300 bg-red-50" : "border-cream-200"}`} value={dadosNota.data} onChange={(e) => setDadosNota({ ...dadosNota, data: e.target.value })} />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-slate-700 mb-1.5">
-                        Número da NF
-                      </label>
-                      <input
-                        type="text"
-                        disabled={isLocked}
-                        className={`w-full px-3 py-2 border rounded-md text-sm outline-none ${isLocked ? "bg-slate-50 text-slate-500" : "focus:ring-2 focus:ring-sky-500/40 focus:border-sky-600"} ${!dadosNota.numero && !isLocked ? "border-red-300 bg-red-50" : "border-slate-300"}`}
-                        value={dadosNota.numero}
-                        onChange={(e) =>
-                          setDadosNota({ ...dadosNota, numero: e.target.value })
-                        }
-                      />
+                      <label className="block text-xs font-medium text-stone-700 mb-1.5">Número da NF</label>
+                      <input type="text" disabled={isLocked} className={`w-full px-3 py-2 border rounded-xl text-sm outline-none ${isLocked ? "bg-cream-50 text-stone-500" : "focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500"} ${!dadosNota.numero && !isLocked ? "border-red-300 bg-red-50" : "border-cream-200"}`} value={dadosNota.numero} onChange={(e) => setDadosNota({ ...dadosNota, numero: e.target.value })} />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-slate-700 mb-1.5">
-                        Descrição
-                      </label>
-                      <input
-                        type="text"
-                        disabled={isLocked}
-                        className={`w-full px-3 py-2 border rounded-md text-sm outline-none ${isLocked ? "bg-slate-50 text-slate-500" : "focus:ring-2 focus:ring-sky-500/40 focus:border-sky-600 border-slate-300"}`}
-                        value={dadosNota.descricao}
-                        onChange={(e) =>
-                          setDadosNota({
-                            ...dadosNota,
-                            descricao: e.target.value,
-                          })
-                        }
-                      />
+                      <label className="block text-xs font-medium text-stone-700 mb-1.5">Descrição</label>
+                      <input type="text" disabled={isLocked} className={`w-full px-3 py-2 border rounded-xl text-sm outline-none ${isLocked ? "bg-cream-50 text-stone-500" : "focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 border-cream-200"}`} value={dadosNota.descricao} onChange={(e) => setDadosNota({ ...dadosNota, descricao: e.target.value })} />
                     </div>
                   </div>
                 </div>
               </div>
             )}
 
-            {/* BOTÃO GLOBAL DE ENVIO (Sempre visível se houver nota anexada) */}
+            {/* BOTÃO GLOBAL DE ENVIO */}
             {arquivoNotaFiscal && (
-              <div className="pt-6 border-t border-slate-200 mt-6">
-                <button
-                  type="submit"
-                  className="w-full bg-sky-600 hover:bg-sky-700 text-white font-medium py-3 rounded-md transition-colors flex justify-center items-center gap-2 text-sm"
-                >
-                  <CheckCircle2 className="w-4 h-4" /> Confirmar e Enviar
-                  Prestação Definitiva
+              <div className="pt-6 border-t border-cream-200 mt-6">
+                <button type="submit" className="w-full bg-brand-700 hover:bg-brand-800 text-white font-semibold py-3 rounded-2xl transition-colors flex justify-center items-center gap-2 text-sm shadow-sm">
+                  <CheckCircle2 className="w-4 h-4" /> Confirmar e Enviar Prestação Definitiva
                 </button>
               </div>
             )}

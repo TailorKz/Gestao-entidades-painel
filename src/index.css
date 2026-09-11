@@ -1,1 +1,33 @@
 @import "tailwindcss";
+
+@theme {
+  --font-sans: "Nunito Sans", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-heading: "Varela Round", "Nunito Sans", ui-sans-serif, system-ui, sans-serif;
+
+  --color-warm: #F6F2EC;
+  --color-cream-50: #FBF9F5;
+  --color-cream-100: #F4EFE7;
+  --color-cream-200: #E9E1D4;
+
+  --color-brand-50: #EFFAF7;
+  --color-brand-100: #D6F2EC;
+  --color-brand-200: #B0E5DB;
+  --color-brand-300: #7ED1C4;
+  --color-brand-500: #2FA99A;
+  --color-brand-600: #15867A;
+  --color-brand-700: #0F6E65;
+  --color-brand-800: #0C5953;
+  --color-brand-900: #094641;
+}
+
+body {
+  background-color: var(--color-warm);
+  color: #292524;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background-color: var(--color-brand-100);
+  color: var(--color-brand-900);
+}
