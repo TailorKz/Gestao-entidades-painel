@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { api } from '../services/api';
-import { User, Lock, ArrowRight, ShieldCheck, Loader2, KeyRound } from 'lucide-react';
+import { User, Lock, ArrowRight, Loader2, KeyRound } from 'lucide-react';
 
 const heading = { fontFamily: "'Varela Round', sans-serif" };
 
@@ -100,15 +100,8 @@ export default function Login() {
       <div className="absolute top-1/3 left-1/2 -translate-x-1/2 w-72 h-72 rounded-full bg-emerald-100/40 blur-3xl" />
 
       <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10">
-        <div className="flex justify-center mb-4">
-          <div className="w-16 h-16 rounded-2xl bg-brand-700 text-white flex items-center justify-center shadow-lg shadow-brand-700/20">
-            <ShieldCheck className="w-8 h-8" />
-          </div>
-        </div>
-        <h2 style={heading} className="mt-3 text-center text-3xl font-bold tracking-tight text-stone-900">
-          INDACI
-        </h2>
-        <p className="text-center text-brand-700 font-semibold text-sm mt-1">
+        <img src="/logo-indaci.png" alt="INDACI" className="h-20 w-auto mx-auto drop-shadow-sm" />
+        <p className="text-center text-brand-700 font-semibold text-sm mt-3">
           Portal de Prestações de Contas
         </p>
       </div>

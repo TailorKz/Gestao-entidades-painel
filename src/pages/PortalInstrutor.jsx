@@ -44,6 +44,9 @@ export default function PortalInstrutor() {
 
   const [isEditing, setIsEditing] = useState(false);
 
+  // Histórico de prestações
+  const [minhasPrestacoes, setMinhasPrestacoes] = useState([]);
+
   // Estados do Motor de OCR
   const [isLendoNota, setIsLendoNota] = useState(false);
   const [showFormulario, setShowFormulario] = useState(false);
@@ -73,9 +76,22 @@ export default function PortalInstrutor() {
     }
   };
 
+  const carregarMinhasPrestacoes = async () => {
+    const usuarioId = localStorage.getItem('usuarioId');
+    if (!usuarioId) return;
+    try {
+      const res = await api.get(`/despesas/usuario/${usuarioId}`);
+      setMinhasPrestacoes(res.data);
+    } catch (error) {
+      console.error("Erro ao carregar prestações:", error);
+    }
+  };
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     carregarParcelas();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    carregarMinhasPrestacoes();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -330,6 +346,46 @@ export default function PortalInstrutor() {
                     </span>
                   </button>
                 ))}
+              </div>
+            )}
+
+            {/* HISTÓRICO: MINHAS PRESTAÇÕES */}
+            {minhasPrestacoes.length > 0 && (
+              <div className="mt-10">
+                <div className="flex items-center gap-2 mb-4">
+                  <FileText className="w-5 h-5 text-amber-600" />
+                  <h2 style={heading} className="text-lg text-stone-900">
+                    Minhas Prestações Enviadas
+                  </h2>
+                </div>
+                <div className="bg-white rounded-2xl border border-cream-200 shadow-sm overflow-hidden">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b-2 border-cream-200 text-stone-800 text-xs uppercase tracking-wide">
+                        <th className="px-5 py-3 font-bold">Competência</th>
+                        <th className="px-5 py-3 font-bold">Emitente</th>
+                        <th className="px-5 py-3 font-bold">Valor (R$)</th>
+                        <th className="px-5 py-3 font-bold">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {minhasPrestacoes.map((p, index) => (
+                        <tr key={p.id} className={`${index % 2 === 0 ? 'bg-white' : 'bg-cream-50/50'} border-b border-cream-100`}>
+                          <td className="px-5 py-3 text-sm text-stone-700 font-medium">{p.dataCompetencia}</td>
+                          <td className="px-5 py-3 text-sm text-stone-500">{p.emitente || '—'}</td>
+                          <td className="px-5 py-3 text-sm font-semibold text-stone-900">
+                            R$ {Number(p.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          </td>
+                          <td className="px-5 py-3">
+                            <span className="inline-flex items-center bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wide">
+                              {p.status.replace(/_/g, ' ')}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
           </div>

@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, LogOut, ShieldCheck, Wallet, Activity, Music } from 'lucide-react';
+import { LayoutDashboard, Users, LogOut, Wallet, Activity, Music, Send, ArrowLeftRight, Bell } from 'lucide-react';
 import { SETORES, getSetorAtivo, setSetorAtivo } from '../services/setor';
+import { api } from '../services/api';
 
 const heading = { fontFamily: "'Varela Round', sans-serif" };
 
@@ -25,6 +26,29 @@ export default function LayoutGestor() {
   // Pega o nome do gestor salvo no login
   const userName = localStorage.getItem('usuarioNome') || 'Gestor';
   const [setorAtivo, setSetorLocal] = useState(getSetorAtivo());
+  const [lembretesHoje, setLembretesHoje] = useState([]);
+  const [bellAberto, setBellAberto] = useState(false);
+  const bellRef = useRef(null);
+
+  useEffect(() => {
+    const carregarLembretesHoje = async () => {
+      try {
+        const res = await api.get('/lembretes/hoje');
+        setLembretesHoje(res.data);
+      } catch { setLembretesHoje([]); }
+    };
+    carregarLembretesHoje();
+    window.addEventListener('setor-changed', carregarLembretesHoje);
+    return () => window.removeEventListener('setor-changed', carregarLembretesHoje);
+  }, []);
+
+  useEffect(() => {
+    const aoClicarFora = (e) => {
+      if (bellRef.current && !bellRef.current.contains(e.target)) setBellAberto(false);
+    };
+    document.addEventListener('mousedown', aoClicarFora);
+    return () => document.removeEventListener('mousedown', aoClicarFora);
+  }, []);
 
   const handleLogout = () => {
     localStorage.clear(); // Limpa a sessão
@@ -39,6 +63,8 @@ export default function LayoutGestor() {
   const menuItems = [
     { path: '/gestor', label: 'Visão Geral', icon: LayoutDashboard },
     { path: '/prestacoes', label: 'Controle de Parcelas', icon: Wallet },
+    { path: '/lancar-despesa', label: 'Lançar Despesa', icon: Send },
+    { path: '/emprestimos-eventos', label: 'Empréstimos e Eventos', icon: ArrowLeftRight },
     { path: '/painel', label: 'Equipe de Instrutores', icon: Users },
   ];
 
@@ -51,12 +77,10 @@ export default function LayoutGestor() {
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between gap-4">
           {/* Marca */}
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-brand-700 text-white flex items-center justify-center shadow-sm">
-              <ShieldCheck className="w-5 h-5" />
-            </div>
-            <div>
-              <h1 style={heading} className="text-base text-stone-800 leading-tight">INDACI</h1>
-              <p className="text-[10px] text-stone-500 leading-tight">Portal de Prestação de Contas</p>
+            <img src="/logo-indaci.png" alt="INDACI" className="h-10 w-auto" />
+            <div className="leading-tight">
+              <h1 style={heading} className="text-base text-stone-800">INDACI</h1>
+              <p className="text-[10px] text-stone-500">Prestação de Contas</p>
             </div>
           </div>
 
@@ -79,8 +103,52 @@ export default function LayoutGestor() {
             })}
           </div>
 
-          {/* Usuário + sair */}
+          {/* Usuário + notificações + sair */}
           <div className="flex items-center gap-3">
+            <div className="relative" ref={bellRef}>
+              <button
+                onClick={() => setBellAberto((v) => !v)}
+                title="Lembretes de hoje"
+                aria-label={`Notificações de hoje: ${lembretesHoje.length}`}
+                aria-expanded={bellAberto}
+                className={`relative p-2 rounded-lg transition-colors cursor-pointer ${lembretesHoje.length > 0 ? 'text-amber-600 hover:bg-amber-50' : 'text-stone-400 hover:text-stone-600 hover:bg-cream-100'}`}
+              >
+                <Bell className="w-5 h-5" />
+                {lembretesHoje.length > 0 && (
+                  <span
+                    aria-hidden="true"
+                    className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center px-1 border-2 border-white"
+                  >
+                    {lembretesHoje.length}
+                  </span>
+                )}
+              </button>
+              <span role="status" className="sr-only">
+                {lembretesHoje.length > 0
+                  ? `${lembretesHoje.length} lembrete${lembretesHoje.length > 1 ? 's' : ''} para hoje`
+                  : 'Sem lembretes para hoje'}
+              </span>
+              {bellAberto && (
+                <div className="absolute right-0 mt-2 w-72 bg-white rounded-2xl border border-cream-200 shadow-lg overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-150">
+                  <div className="px-4 py-3 border-b border-cream-200 bg-cream-50">
+                    <p style={heading} className="text-xs font-bold text-stone-700 uppercase tracking-widest">Lembretes de Hoje</p>
+                  </div>
+                  <div className="max-h-72 overflow-y-auto">
+                    {lembretesHoje.length === 0 ? (
+                      <p className="px-4 py-6 text-sm text-stone-500 text-center">Nenhum lembrete para hoje.</p>
+                    ) : (
+                      lembretesHoje.map((l) => (
+                        <div key={l.id} className="px-4 py-3 border-b border-cream-100 flex items-start gap-2.5">
+                          <span className="mt-0.5 w-2 h-2 rounded-full bg-amber-500 shrink-0" aria-hidden="true" />
+                          <span className="text-sm text-stone-700">{l.titulo}</span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="flex items-center gap-2.5">
               <div className="w-8 h-8 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center text-xs font-bold">
                 {userName.charAt(0).toUpperCase()}

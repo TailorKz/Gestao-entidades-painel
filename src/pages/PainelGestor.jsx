@@ -155,6 +155,13 @@ export default function PainelGestor() {
               <div>
                 <h2 style={heading} className="text-base text-stone-900">{instrutorSelecionado.nome}</h2>
                 <p className="text-stone-500 text-xs">Depto de {instrutorSelecionado.categoria === 'ESPORTE' ? 'Esporte' : 'Cultura'}</p>
+                {instrutorSelecionado.observacoes ? (
+                  <p className="text-stone-600 text-xs mt-1 max-w-md leading-relaxed">
+                    <span className="font-medium text-stone-500">Observações: </span>{instrutorSelecionado.observacoes}
+                  </p>
+                ) : (
+                  <p className="text-stone-400 text-xs mt-1 italic">Sem observações cadastradas.</p>
+                )}
               </div>
             </div>
             <div className="p-5">

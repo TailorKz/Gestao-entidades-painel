@@ -102,7 +102,7 @@ export default function DashboardGestor() {
                         >
                             {parcelas.map(p => (
                                 <option key={p.id} value={p.id}>
-                                    {p.categoria === 'ESPORTE' ? 'Esporte' : 'Cultura'} — Parcela 0{p.numero} {p.mesesReferencia ? `(${p.mesesReferencia})` : ''}
+                                    {p.categoria === 'ESPORTE' ? 'Esporte' : 'Cultura'} — Parcela 0{p.numero} {p.mesesReferencia ? `(${p.mesesReferencia.split(', ').length} meses)` : ''}
                                 </option>
                             ))}
                             {parcelas.length === 0 && <option>Nenhuma parcela cadastrada</option>}

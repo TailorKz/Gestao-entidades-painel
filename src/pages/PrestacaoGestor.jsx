@@ -1,7 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { api } from '../services/api';
 import { categoriaQueryParam, getSetorAtivo } from '../services/setor';
-import { Calculator, Activity, Trash2, Check, Loader2, Plus, Edit2, X, CalendarDays } from 'lucide-react';
+import { Calculator, Activity, Trash2, Check, Loader2, Plus, Edit2, X, CalendarDays, FileDown } from 'lucide-react';
+import EditarDespesaInline from '../components/EditarDespesaInline';
+import { exportarPdfProjecao, exportarPdfPrestacoes } from '../services/exportarPdf';
 
 const heading = { fontFamily: "'Varela Round', sans-serif" };
 
@@ -17,6 +19,10 @@ export default function DashboardGestor() {
 
     const [novaLinha, setNovaLinha] = useState({ descricao: '', valor: '' });
     const [isSaving, setIsSaving] = useState(false);
+
+    const [estimativaEmEdicao, setEstimativaEmEdicao] = useState(null);
+    const [dadosEstEdicao, setDadosEstEdicao] = useState({ descricao: '', valor: '' });
+    const [despesaEmEdicao, setDespesaEmEdicao] = useState(null);
 
     // Estados do Modal
     const [modalParcela, setModalParcela] = useState({ aberto: false, modo: 'NOVA' });
@@ -92,6 +98,47 @@ export default function DashboardGestor() {
         catch { alert("Erro ao excluir registro."); }
     };
 
+    const iniciarEdicaoEstimativa = (est) => {
+        setEstimativaEmEdicao(est);
+        setDadosEstEdicao({ descricao: est.descricao, valor: Number(est.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) });
+    };
+
+    const handleSalvarEdicaoEstimativa = async () => {
+        if (!dadosEstEdicao.descricao.trim() || !dadosEstEdicao.valor.trim()) return;
+        const valorNum = parseFloat(dadosEstEdicao.valor.replace(/\./g, '').replace(',', '.'));
+        if (isNaN(valorNum) || valorNum <= 0) return alert("Valor inválido.");
+        setIsSaving(true);
+        try {
+            await api.put(`/estimativas/${estimativaEmEdicao.id}`, { descricao: dadosEstEdicao.descricao.trim(), valor: valorNum });
+            setEstimativaEmEdicao(null);
+            await carregarGastosDaParcela(parcelaSelecionada.id);
+        } catch { alert("Erro ao salvar o gasto."); }
+        finally { setIsSaving(false); }
+    };
+
+    const handleExcluirDespesa = async (despesa) => {
+        if (!window.confirm("Excluir esta despesa? O valor será devolvido ao saldo da parcela.")) return;
+        try {
+            await api.delete(`/despesas/${despesa.id}`);
+            await carregarGastosDaParcela(parcelaSelecionada.id);
+        } catch { alert("Erro ao excluir a despesa."); }
+    };
+
+    const renderStatusReal = (status) => {
+        const verificada = status && status !== 'AGUARDANDO_DOCUMENTOS';
+        return verificada ? (
+            <span className="inline-flex items-center gap-1.5 bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wide">
+                <Check className="w-3 h-3" /> Verificada
+            </span>
+        ) : (
+            <span className="inline-flex items-center gap-1.5 bg-amber-100 text-amber-800 px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wide">
+                Não verificada
+            </span>
+        );
+    };
+
+    const legendaEstimativa = (descricao) => (descricao || '').replace(/^Lançamento avulso\s+[—-]\s*/i, '');
+
     // --- FUNÇÕES DA PARCELA ---
     const toggleMes = (mes) => {
         if (mesesSelecionados.includes(mes)) setMesesSelecionados(mesesSelecionados.filter(m => m !== mes));
@@ -165,7 +212,7 @@ export default function DashboardGestor() {
                         >
                             {parcelas.map(p => (
                                 <option key={p.id} value={p.id}>
-                                    {p.categoria === 'ESPORTE' ? 'Esporte' : 'Cultura'} — Parcela 0{p.numero} {p.mesesReferencia ? `(${p.mesesReferencia})` : ''}
+                                    {p.categoria === 'ESPORTE' ? 'Esporte' : 'Cultura'} — Parcela 0{p.numero} {p.mesesReferencia ? `(${p.mesesReferencia.split(', ').length} meses)` : ''}
                                 </option>
                             ))}
                         </select>
@@ -201,12 +248,26 @@ export default function DashboardGestor() {
             </div>
 
             {/* 2. ABAS */}
-            <div className="flex bg-cream-100 p-1.5 rounded-full w-fit border border-cream-200">
-                <button onClick={() => setAbaAtiva('ESTIMADA')} className={`flex items-center gap-2 px-6 py-2.5 rounded-full font-semibold text-sm transition-all ${abaAtiva === 'ESTIMADA' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-700 hover:bg-cream-100'}`}>
-                    <Calculator className="w-4 h-4" /> Projeção de Gastos
-                </button>
-                <button onClick={() => setAbaAtiva('REAL')} className={`flex items-center gap-2 px-6 py-2.5 rounded-full font-semibold text-sm transition-all ${abaAtiva === 'REAL' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-700 hover:bg-cream-100'}`}>
-                    <Activity className="w-4 h-4" /> Prestação em Tempo Real
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="flex bg-cream-100 p-1.5 rounded-full w-fit border border-cream-200">
+                    <button onClick={() => setAbaAtiva('ESTIMADA')} className={`flex items-center gap-2 px-6 py-2.5 rounded-full font-semibold text-sm transition-all ${abaAtiva === 'ESTIMADA' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-700 hover:bg-cream-100'}`}>
+                        <Calculator className="w-4 h-4" /> Projeção de Gastos
+                    </button>
+                    <button onClick={() => setAbaAtiva('REAL')} className={`flex items-center gap-2 px-6 py-2.5 rounded-full font-semibold text-sm transition-all ${abaAtiva === 'REAL' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-700 hover:bg-cream-100'}`}>
+                        <Activity className="w-4 h-4" /> Prestação em Tempo Real
+                    </button>
+                </div>
+
+                <button
+                    onClick={() => {
+                        const nomeUsuario = localStorage.getItem('usuarioNome') || 'Gestor';
+                        if (abaAtiva === 'ESTIMADA') exportarPdfProjecao({ parcela: parcelaSelecionada, estimativas, nomeUsuario });
+                        else exportarPdfPrestacoes({ parcela: parcelaSelecionada, despesas, nomeUsuario });
+                    }}
+                    disabled={abaAtiva === 'ESTIMADA' ? estimativas.length === 0 : despesas.length === 0}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full bg-brand-700 text-white text-sm font-semibold hover:bg-brand-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                    <FileDown className="w-4 h-4" /> Exportar PDF
                 </button>
             </div>
 
@@ -227,13 +288,47 @@ export default function DashboardGestor() {
                             <tbody>
                                 {estimativas.map((est, index) => (
                                     <tr key={est.id} className={`${index % 2 === 0 ? 'bg-white' : 'bg-cream-50/50'} border-b border-cream-100 group`}>
-                                        <td className="px-6 py-3.5 text-sm text-stone-700">{est.descricao}</td>
-                                        <td className="px-6 py-3.5 text-sm font-medium text-stone-900">{formatarMoeda(est.valor)}</td>
-                                        <td className="px-6 py-3.5 text-right">
-                                            <button onClick={() => handleDeletarEstimativa(est.id)} className="text-stone-300 hover:text-red-500 transition-colors p-1.5 rounded-md opacity-0 group-hover:opacity-100" title="Excluir">
-                                                <Trash2 className="w-4 h-4" />
-                                            </button>
-                                        </td>
+                                        {estimativaEmEdicao?.id === est.id ? (
+                                            <>
+                                                <td className="px-6 py-3.5">
+                                                    <input
+                                                        type="text"
+                                                        className="w-full px-3 py-2 border border-cream-200 bg-white rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-500/40"
+                                                        value={dadosEstEdicao.descricao}
+                                                        onChange={e => setDadosEstEdicao({ ...dadosEstEdicao, descricao: e.target.value })}
+                                                    />
+                                                </td>
+                                                <td className="px-6 py-3.5">
+                                                    <input
+                                                        type="text"
+                                                        className="w-full px-3 py-2 border border-cream-200 bg-white rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-brand-500/40"
+                                                        value={dadosEstEdicao.valor}
+                                                        onChange={e => setDadosEstEdicao({ ...dadosEstEdicao, valor: e.target.value })}
+                                                    />
+                                                </td>
+                                                <td className="px-6 py-3.5 text-right space-x-1">
+                                                    <button onClick={handleSalvarEdicaoEstimativa} disabled={isSaving} className="p-1.5 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 transition-colors disabled:opacity-50" title="Salvar">
+                                                        {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                                                    </button>
+                                                    <button onClick={() => setEstimativaEmEdicao(null)} className="p-1.5 rounded-md bg-stone-200 text-stone-600 hover:bg-stone-300 transition-colors" title="Cancelar">
+                                                        <X className="w-4 h-4" />
+                                                    </button>
+                                                </td>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <td className="px-6 py-3.5 text-sm text-stone-700">{legendaEstimativa(est.descricao)}</td>
+                                                <td className="px-6 py-3.5 text-sm font-medium text-stone-900">{formatarMoeda(est.valor)}</td>
+                                                <td className="px-6 py-3.5 text-right">
+                                                    <button onClick={() => iniciarEdicaoEstimativa(est)} className="text-stone-300 hover:text-brand-700 transition-colors p-1.5 rounded-md" title="Editar">
+                                                        <Edit2 className="w-4 h-4" />
+                                                    </button>
+                                                    <button onClick={() => handleDeletarEstimativa(est.id)} className="text-stone-300 hover:text-red-500 transition-colors p-1.5 rounded-md" title="Excluir">
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                </td>
+                                            </>
+                                        )}
                                     </tr>
                                 ))}
 
@@ -270,27 +365,45 @@ export default function DashboardGestor() {
                         <table className="w-full text-left border-collapse">
                             <thead>
                                 <tr className="border-b-2 border-cream-200 text-stone-800 text-sm">
-                                    <th className="px-6 py-4 font-bold">Instrutor</th>
+                                    <th className="px-6 py-4 font-bold">Empresa</th>
                                     <th className="px-6 py-4 font-bold">Competência</th>
-                                    <th className="px-6 py-4 font-bold">Valor Oficial</th>
+                                    <th className="px-6 py-4 font-bold">Valor (R$)</th>
                                     <th className="px-6 py-4 font-bold">Status</th>
+                                    <th className="px-6 py-4 font-bold text-right">Ações</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {despesas.length === 0 ? (
-                                    <tr><td colSpan="4" className="px-6 py-12 text-center text-sm text-stone-500">Nenhuma prestação oficial recebida para esta parcela.</td></tr>
+                                    <tr><td colSpan="5" className="px-6 py-12 text-center text-sm text-stone-500">Nenhuma prestação recebida para esta parcela.</td></tr>
                                 ) : (
                                     despesas.map((despesa, index) => (
-                                        <tr key={despesa.id} className={`${index % 2 === 0 ? 'bg-white' : 'bg-cream-50/50'} border-b border-cream-100`}>
-                                            <td className="px-6 py-4 text-sm font-medium text-stone-700">{despesa.nomeInstrutor}</td>
+                                        <Fragment key={despesa.id}>
+                                        <tr className={`${index % 2 === 0 ? 'bg-white' : 'bg-cream-50/50'} border-b border-cream-100`}>
+                                            <td className="px-6 py-4 text-sm">
+                                                <span className="font-medium text-stone-700">{despesa.nomeEmpresa || despesa.emitente || '—'}</span>
+                                                {despesa.observacao && <span className="block text-xs text-stone-400 mt-0.5">Obs: {despesa.observacao}</span>}
+                                            </td>
                                             <td className="px-6 py-4 text-sm text-stone-500">{despesa.dataCompetencia}</td>
                                             <td className="px-6 py-4 text-sm font-semibold text-stone-900">R$ {formatarMoeda(despesa.valor)}</td>
-                                            <td className="px-6 py-4">
-                                                <span className="inline-flex items-center bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wide">
-                                                    {despesa.status.replace(/_/g, ' ')}
-                                                </span>
+                                            <td className="px-6 py-4">{renderStatusReal(despesa.status)}</td>
+                                            <td className="px-6 py-4 text-right space-x-1">
+                                                <button onClick={() => setDespesaEmEdicao(despesaEmEdicao?.id === despesa.id ? null : despesa)} className="text-stone-400 hover:text-brand-700 transition-colors p-1.5 rounded-md" title="Editar">
+                                                    <Edit2 className="w-4 h-4" />
+                                                </button>
+                                                <button onClick={() => handleExcluirDespesa(despesa)} className="text-stone-400 hover:text-red-500 transition-colors p-1.5 rounded-md" title="Excluir">
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
                                             </td>
                                         </tr>
+                                        {despesaEmEdicao?.id === despesa.id && (
+                                            <EditarDespesaInline
+                                                despesa={despesa}
+                                                mesesDisponiveis={parcelaSelecionada?.mesesReferencia ? parcelaSelecionada.mesesReferencia.split(', ').filter(m => TODOS_OS_MESES.includes(m)) : []}
+                                                onCancelar={() => setDespesaEmEdicao(null)}
+                                                onSalvo={async () => { setDespesaEmEdicao(null); await carregarGastosDaParcela(parcelaSelecionada.id); }}
+                                            />
+                                        )}
+                                        </Fragment>
                                     ))
                                 )}
                             </tbody>
@@ -349,9 +462,9 @@ export default function DashboardGestor() {
                             {/* SELEÇÃO DOS MESES */}
                             <div>
                                 <label className="block text-xs font-bold text-stone-700 mb-2.5 uppercase border-b border-cream-200 pb-2">Meses de Competência (Opcional)</label>
-                                <div className="grid grid-cols-3 gap-2">
+                                <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
                                     {TODOS_OS_MESES.map(mes => (
-                                        <label key={mes} className={`flex items-center justify-center gap-2 px-2 py-1.5 border rounded-xl text-xs cursor-pointer select-none transition-colors ${mesesSelecionados.includes(mes) ? 'bg-brand-100 border-brand-300 text-brand-800 font-medium' : 'bg-white border-cream-200 text-stone-600 hover:bg-cream-50'}`}>
+                                        <label key={mes} className={`flex items-center justify-center gap-2 px-2 py-1.5 border rounded-lg text-[11px] cursor-pointer select-none transition-colors ${mesesSelecionados.includes(mes) ? 'bg-brand-100 border-brand-300 text-brand-800 font-semibold' : 'bg-white border-cream-200 text-stone-600 hover:bg-cream-50'}`}>
                                             <input
                                                 type="checkbox" className="hidden"
                                                 checked={mesesSelecionados.includes(mes)}
@@ -371,6 +484,7 @@ export default function DashboardGestor() {
                     </div>
                 </div>
             )}
+
         </div>
     );
 }

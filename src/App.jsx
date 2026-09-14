@@ -5,6 +5,8 @@ import DashboardGestor from './pages/DashboardGestor';
 import PrestacaoGestor from './pages/PrestacaoGestor';
 import PortalInstrutor from './pages/PortalInstrutor';
 import PainelGestor from './pages/PainelGestor';
+import LancarDespesa from './pages/LancarDespesa';
+import EmprestimosEventos from './pages/EmprestimosEventos';
 import LayoutGestor from './components/LayoutGestor';
 import RequireAuth from './components/RequireAuth';
 
@@ -19,6 +21,8 @@ export default function App() {
                 <Route element={<RequireAuth roles={ROLES_GESTOR}><LayoutGestor /></RequireAuth>}>
                     <Route path="/gestor" element={<DashboardGestor />} />
                     <Route path="/prestacoes" element={<PrestacaoGestor />} />
+                    <Route path="/lancar-despesa" element={<LancarDespesa />} />
+                    <Route path="/emprestimos-eventos" element={<EmprestimosEventos />} />
                     <Route path="/painel" element={<PainelGestor />} />
                 </Route>
 
