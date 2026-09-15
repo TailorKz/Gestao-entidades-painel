@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { api } from '../services/api';
+import { api, obterMensagemErro } from '../services/api';
 import { Check, X, Loader2 } from 'lucide-react';
 
 const TODOS_OS_MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
@@ -39,7 +39,7 @@ export default function EditarDespesaInline({ despesa, mesesDisponiveis, onCance
       onSalvo();
     } catch (error) {
       console.error("Erro ao editar despesa:", error);
-      alert(error.response?.data || "Erro ao salvar a despesa.");
+      alert(obterMensagemErro(error, "Erro ao salvar a despesa."));
     } finally {
       setIsSaving(false);
     }

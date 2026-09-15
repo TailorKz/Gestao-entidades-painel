@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { api } from "../services/api";
+import { api, obterMensagemErro } from "../services/api";
 import {
   Edit2,
   CheckCircle2,
@@ -90,7 +90,6 @@ export default function PortalInstrutor() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     carregarParcelas();
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     carregarMinhasPrestacoes();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -243,7 +242,7 @@ export default function PortalInstrutor() {
       voltarParaParcelas();
     } catch (error) {
       console.error("Erro ao salvar despesa:", error);
-      alert(error.response?.data || "Erro ao enviar a prestação de contas. Verifique o console.");
+      alert(obterMensagemErro(error, "Erro ao enviar a prestação de contas. Verifique o console."));
     }
   };
 
@@ -358,8 +357,8 @@ export default function PortalInstrutor() {
                     Minhas Prestações Enviadas
                   </h2>
                 </div>
-                <div className="bg-white rounded-2xl border border-cream-200 shadow-sm overflow-hidden">
-                  <table className="w-full text-left border-collapse">
+                <div className="bg-white rounded-2xl border border-cream-200 shadow-sm overflow-x-auto">
+                  <table className="w-full text-left border-collapse min-w-[560px]">
                     <thead>
                       <tr className="border-b-2 border-cream-200 text-stone-800 text-xs uppercase tracking-wide">
                         <th className="px-5 py-3 font-bold">Competência</th>

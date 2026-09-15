@@ -175,7 +175,7 @@ export default function DashboardGestor() {
                             ) : (
                                 <ul className="divide-y divide-cream-100">
                                     {resumo?.listaPendentes.map((instrutor) => (
-                                        <li key={instrutor.id} className="px-6 py-4 flex items-center justify-between hover:bg-cream-50 transition-colors">
+                                        <li key={instrutor.id} className="px-6 py-4 flex items-center justify-between gap-3 flex-wrap hover:bg-cream-50 transition-colors">
                                             <div className="flex items-center gap-4">
                                                 <div className="w-10 h-10 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center font-bold text-sm">
                                                     {instrutor.nome.charAt(0)}

@@ -1,9 +1,9 @@
 import { useState, useEffect, Fragment } from 'react';
-import { api } from '../services/api';
+import { api, obterMensagemErro } from '../services/api';
 import { categoriaQueryParam, getSetorAtivo } from '../services/setor';
 import {
   Send, Briefcase, UserPlus, UploadCloud, FileText, Trash2,
-  Loader2, CheckCircle2, Wallet, CalendarDays, X, Edit2, Plus,
+  Loader2, CheckCircle2, Wallet, X, Edit2, Plus,
 } from 'lucide-react';
 import EditarDespesaInline from '../components/EditarDespesaInline';
 
@@ -64,9 +64,20 @@ export default function LancarDespesa() {
     } catch (error) { console.error("Erro ao carregar despesas:", error); }
   };
 
-  useEffect(() => { carregarParcelas(); carregarInstrutores(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    carregarParcelas();
+    carregarInstrutores();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { const h = () => carregarParcelas(); window.addEventListener('setor-changed', h); return () => window.removeEventListener('setor-changed', h); }, []);
-  useEffect(() => { if (parcelaSelecionada) carregarDespesas(parcelaSelecionada.id); }, [parcelaSelecionada]);
+  useEffect(() => {
+    if (parcelaSelecionada) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      carregarDespesas(parcelaSelecionada.id);
+    }
+  }, [parcelaSelecionada]);
 
   // --- RESET AO TROCAR ABA ---
   const resetarForm = () => {
@@ -197,11 +208,10 @@ export default function LancarDespesa() {
       await api.post("/despesas/admin-lancar", formData, { headers: { "Content-Type": "multipart/form-data" } });
       alert(modo === 'INSTRUTOR' ? "Despesa lançada para o instrutor com sucesso!" : "Lançamento avulso registrado com sucesso!");
       fecharForm();
-      await carregarDespesas(parcelaSelecionada.id);
-      await carregarParcelas();
+      await Promise.all([carregarDespesas(parcelaSelecionada.id), carregarParcelas()]);
     } catch (error) {
       console.error("Erro ao lançar despesa:", error);
-      alert(error.response?.data || "Erro ao lançar a despesa.");
+      alert(obterMensagemErro(error, "Erro ao lançar a despesa."));
     } finally {
       setIsSaving(false);
     }
@@ -214,10 +224,9 @@ export default function LancarDespesa() {
     if (!window.confirm("Excluir esta despesa? O valor será devolvido ao saldo da parcela.")) return;
     try {
       await api.delete(`/despesas/${despesa.id}`);
-      await carregarDespesas(parcelaSelecionada.id);
-      await carregarParcelas();
+      await Promise.all([carregarDespesas(parcelaSelecionada.id), carregarParcelas()]);
     } catch (error) {
-      alert(error.response?.data || "Erro ao excluir a despesa.");
+      alert(obterMensagemErro(error, "Erro ao excluir a despesa."));
     }
   };
 
@@ -449,7 +458,7 @@ export default function LancarDespesa() {
             <h3 style={heading} className="text-sm text-stone-800 font-semibold">Prestação em Tempo Real</h3>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+            <table className="w-full text-left border-collapse min-w-[560px]">
               <thead>
                 <tr className="border-b-2 border-cream-200 text-stone-800 text-sm">
                   <th className="px-5 py-3 font-bold">Empresa</th>

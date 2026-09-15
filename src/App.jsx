@@ -7,6 +7,7 @@ import PortalInstrutor from './pages/PortalInstrutor';
 import PainelGestor from './pages/PainelGestor';
 import LancarDespesa from './pages/LancarDespesa';
 import EmprestimosEventos from './pages/EmprestimosEventos';
+import Ginasios from './pages/Ginasios';
 import LayoutGestor from './components/LayoutGestor';
 import RequireAuth from './components/RequireAuth';
 
@@ -23,6 +24,7 @@ export default function App() {
                     <Route path="/prestacoes" element={<PrestacaoGestor />} />
                     <Route path="/lancar-despesa" element={<LancarDespesa />} />
                     <Route path="/emprestimos-eventos" element={<EmprestimosEventos />} />
+                    <Route path="/ginasios" element={<Ginasios />} />
                     <Route path="/painel" element={<PainelGestor />} />
                 </Route>
 

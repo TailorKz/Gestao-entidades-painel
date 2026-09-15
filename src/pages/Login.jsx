@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { api } from '../services/api';
+import { api, obterMensagemErro } from '../services/api';
 import { User, Lock, ArrowRight, Loader2, KeyRound } from 'lucide-react';
 
 const heading = { fontFamily: "'Varela Round', sans-serif" };
@@ -39,7 +39,7 @@ export default function Login() {
       iniciarSessao(dadosUsuario);
 
     } catch (error) {
-      setErro(error.response?.data || 'Erro ao conectar com o servidor.');
+      setErro(obterMensagemErro(error, 'Erro ao conectar com o servidor.'));
       setIsLoading(false);
     }
   };
@@ -69,7 +69,7 @@ export default function Login() {
       iniciarSessao(response.data);
 
     } catch (error) {
-      setErro(error.response?.data || 'Erro ao trocar a senha.');
+      setErro(obterMensagemErro(error, 'Erro ao trocar a senha.'));
       setIsLoading(false);
     }
   };

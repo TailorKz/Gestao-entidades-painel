@@ -1,5 +1,5 @@
 import { useState, useEffect, Fragment } from 'react';
-import { api } from '../services/api';
+import { api, obterMensagemErro } from '../services/api';
 import { categoriaQueryParam, getSetorAtivo } from '../services/setor';
 import { Calculator, Activity, Trash2, Check, Loader2, Plus, Edit2, X, CalendarDays, FileDown } from 'lucide-react';
 import EditarDespesaInline from '../components/EditarDespesaInline';
@@ -9,7 +9,7 @@ const heading = { fontFamily: "'Varela Round', sans-serif" };
 
 const TODOS_OS_MESES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
-export default function DashboardGestor() {
+export default function PrestacaoGestor() {
     const [parcelas, setParcelas] = useState([]);
     const [parcelaSelecionada, setParcelaSelecionada] = useState(null);
     const [abaAtiva, setAbaAtiva] = useState('ESTIMADA');
@@ -87,7 +87,7 @@ export default function DashboardGestor() {
             });
             setNovaLinha({ descricao: '', valor: '' });
             await carregarGastosDaParcela(parcelaSelecionada.id);
-        } catch { alert("Erro ao salvar o gasto."); }
+        } catch (error) { alert(obterMensagemErro(error, "Erro ao salvar o gasto.")); }
         finally { setIsSaving(false); }
     };
 
@@ -95,7 +95,7 @@ export default function DashboardGestor() {
     const handleDeletarEstimativa = async (id) => {
         if(!window.confirm("Deseja remover este registro?")) return;
         try { await api.delete(`/estimativas/${id}`); await carregarGastosDaParcela(parcelaSelecionada.id); }
-        catch { alert("Erro ao excluir registro."); }
+        catch (error) { alert(obterMensagemErro(error, "Erro ao excluir registro.")); }
     };
 
     const iniciarEdicaoEstimativa = (est) => {
@@ -112,7 +112,7 @@ export default function DashboardGestor() {
             await api.put(`/estimativas/${estimativaEmEdicao.id}`, { descricao: dadosEstEdicao.descricao.trim(), valor: valorNum });
             setEstimativaEmEdicao(null);
             await carregarGastosDaParcela(parcelaSelecionada.id);
-        } catch { alert("Erro ao salvar o gasto."); }
+        } catch (error) { alert(obterMensagemErro(error, "Erro ao salvar o gasto.")); }
         finally { setIsSaving(false); }
     };
 
@@ -121,7 +121,7 @@ export default function DashboardGestor() {
         try {
             await api.delete(`/despesas/${despesa.id}`);
             await carregarGastosDaParcela(parcelaSelecionada.id);
-        } catch { alert("Erro ao excluir a despesa."); }
+        } catch (error) { alert(obterMensagemErro(error, "Erro ao excluir a despesa.")); }
     };
 
     const renderStatusReal = (status) => {
@@ -168,7 +168,7 @@ export default function DashboardGestor() {
             }
             setModalParcela({ aberto: false, modo: 'NOVA' });
             await carregarParcelas();
-        } catch { alert("Erro ao salvar parcela."); }
+        } catch (error) { alert(obterMensagemErro(error, "Erro ao salvar parcela.")); }
         finally { setIsSaving(false); }
     };
 
@@ -277,7 +277,7 @@ export default function DashboardGestor() {
                 {/* TABELA: PROJEÇÃO ESTIMADA */}
                 {abaAtiva === 'ESTIMADA' && (
                     <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
+                        <table className="w-full text-left border-collapse min-w-[560px]">
                             <thead>
                                 <tr className="border-b-2 border-cream-200 text-stone-800 text-sm">
                                     <th className="px-6 py-4 font-bold">Descrição</th>
@@ -362,7 +362,7 @@ export default function DashboardGestor() {
                 {/* TABELA: TEMPO REAL */}
                 {abaAtiva === 'REAL' && (
                     <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
+                        <table className="w-full text-left border-collapse min-w-[560px]">
                             <thead>
                                 <tr className="border-b-2 border-cream-200 text-stone-800 text-sm">
                                     <th className="px-6 py-4 font-bold">Empresa</th>

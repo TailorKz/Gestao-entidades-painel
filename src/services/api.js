@@ -25,3 +25,10 @@ api.interceptors.response.use(
         return Promise.reject(error);
     }
 );
+
+export function obterMensagemErro(error, padrao = 'Erro inesperado.') {
+    const dados = error?.response?.data;
+    if (dados && typeof dados === 'string') return dados;
+    if (dados && typeof dados.mensagem === 'string' && dados.mensagem.trim()) return dados.mensagem;
+    return padrao;
+}

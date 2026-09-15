@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { api } from '../services/api';
+import { api, obterMensagemErro } from '../services/api';
 import { categoriaQueryParam, getSetorAtivo } from '../services/setor';
 import { Package, Trash2, Check, Loader2, Edit2, X, Bell, ArrowLeftRight, Clock } from 'lucide-react';
 
@@ -51,16 +51,20 @@ export default function EmprestimosEventos() {
     useEffect(() => {
         // eslint-disable-next-line react-hooks/set-state-in-effect
         carregarEmprestimos();
-        carregarLembretes();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [filtroEmprestimos]);
+
+    useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        carregarLembretes();
+    }, []);
 
     useEffect(() => {
         const aoMudarSetor = () => { carregarEmprestimos(); carregarLembretes(); };
         window.addEventListener('setor-changed', aoMudarSetor);
         return () => window.removeEventListener('setor-changed', aoMudarSetor);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [filtroEmprestimos]);
+    }, []);
 
     // --- EMPRÉSTIMOS: Criar ---
     const handleCriarEmprestimo = async () => {
@@ -75,7 +79,7 @@ export default function EmprestimosEventos() {
             });
             setNovaLinha({ equipamento: '', nomeRetirante: '' });
             await carregarEmprestimos();
-        } catch { alert("Erro ao registrar empréstimo."); }
+        } catch (error) { alert(obterMensagemErro(error, "Erro ao registrar empréstimo.")); }
         finally { setIsSaving(false); }
     };
 
@@ -103,7 +107,7 @@ export default function EmprestimosEventos() {
             });
             cancelarEdicao();
             await carregarEmprestimos();
-        } catch { alert("Erro ao editar empréstimo."); }
+        } catch (error) { alert(obterMensagemErro(error, "Erro ao editar empréstimo.")); }
         finally { setIsSaving(false); }
     };
 
@@ -114,7 +118,7 @@ export default function EmprestimosEventos() {
         try {
             await api.post(`/emprestimos/${emp.id}/devolver`);
             await carregarEmprestimos();
-        } catch { alert("Erro ao registrar entrega."); }
+        } catch (error) { alert(obterMensagemErro(error, "Erro ao registrar entrega.")); }
         finally { setIsSaving(false); }
     };
 
@@ -122,7 +126,7 @@ export default function EmprestimosEventos() {
     const handleDeletarEmprestimo = async (id) => {
         if (!window.confirm("Remover este empréstimo?")) return;
         try { await api.delete(`/emprestimos/${id}`); await carregarEmprestimos(); }
-        catch { alert("Erro ao excluir."); }
+        catch (error) { alert(obterMensagemErro(error, "Erro ao excluir.")); }
     };
 
     // --- LEMBRETES: Criar ---
@@ -133,14 +137,14 @@ export default function EmprestimosEventos() {
             await api.post('/lembretes', { titulo: novoLembrete.titulo, data: novoLembrete.data || todayStr() });
             setNovoLembrete({ titulo: '', data: todayStr() });
             await carregarLembretes();
-        } catch { alert("Erro ao salvar lembrete."); }
+        } catch (error) { alert(obterMensagemErro(error, "Erro ao salvar lembrete.")); }
         finally { setIsSaving(false); }
     };
 
     const handleDeletarLembrete = async (id) => {
         if (!window.confirm("Remover este lembrete?")) return;
         try { await api.delete(`/lembretes/${id}`); await carregarLembretes(); }
-        catch { alert("Erro ao excluir lembrete."); }
+        catch (error) { alert(obterMensagemErro(error, "Erro ao excluir lembrete.")); }
     };
 
     const inputClass = "w-full bg-white border border-cream-200 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 rounded-xl shadow-sm text-sm px-3 py-2 outline-none placeholder:text-stone-400";
@@ -205,7 +209,7 @@ export default function EmprestimosEventos() {
                     {/* TABELA */}
                     <div className="bg-white rounded-2xl border border-cream-200 shadow-sm overflow-hidden">
                         <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse">
+                            <table className="w-full text-left border-collapse min-w-[560px]">
                                 <thead>
                                     <tr className="border-b-2 border-cream-200 text-stone-800 text-sm">
                                         <th className="px-6 py-4 font-bold">Equipamento</th>
@@ -387,7 +391,7 @@ export default function EmprestimosEventos() {
                     {/* LISTA DE LEMBRETES */}
                     <div className="bg-white rounded-2xl border border-cream-200 shadow-sm overflow-hidden">
                         <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse">
+                            <table className="w-full text-left border-collapse min-w-[560px]">
                                 <thead>
                                     <tr className="border-b-2 border-cream-200 text-stone-800 text-sm">
                                         <th className="px-6 py-4 font-bold">Lembrete</th>

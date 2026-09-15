@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { api } from '../services/api';
+import { api, obterMensagemErro } from '../services/api';
 import { categoriaQueryParam, getSetorAtivo } from '../services/setor';
 import { Users, UserPlus, X, Activity, Music, ArrowLeft, ArrowRight, FileText, Send } from 'lucide-react';
 
@@ -69,7 +69,7 @@ export default function PainelGestor() {
       setDadosInstrutor({ nome: '', login: '', senha: '', categoria: getSetorAtivo(), observacoes: '' });
       carregarInstrutores();
     } catch (error) {
-      alert("Erro ao cadastrar: " + (error.response?.data || "Verifique os dados."));
+      alert(obterMensagemErro(error, "Erro ao cadastrar. Verifique os dados."));
     }
   };
 
@@ -103,7 +103,8 @@ export default function PainelGestor() {
 
   const abrirPdfEmNovaAba = (caminhoCompleto) => {
     const nomeArquivo = caminhoCompleto.replace('uploads\\', '').replace('uploads/', '');
-    window.open(`http://localhost:8080/arquivos/${nomeArquivo}`, '_blank');
+    const apiBase = api.defaults.baseURL || 'http://localhost:8080';
+    window.open(`${apiBase}/arquivos/${nomeArquivo}`, '_blank');
   };
 
   const renderStatus = (status) => {
@@ -130,7 +131,7 @@ export default function PainelGestor() {
       const response = await api.patch(`/despesas/${despesa.id}/status`, { novoStatus: proximo });
       setDespesasInstrutor(despesasInstrutor.map(d => d.id === despesa.id ? { ...d, status: response.data.status } : d));
     } catch (error) {
-      alert(error.response?.data || 'Erro ao avançar o status.');
+      alert(obterMensagemErro(error, 'Erro ao avançar o status.'));
     }
   };
 
@@ -176,7 +177,7 @@ export default function PainelGestor() {
                 </div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
+                  <table className="w-full text-left border-collapse min-w-[560px]">
                     <thead>
                       <tr className="bg-cream-50 text-stone-500 text-[11px] uppercase tracking-wider border-b border-cream-200">
                         <th className="px-4 py-2 font-medium">Mês de Competência</th>
