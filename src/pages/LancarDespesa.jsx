@@ -3,13 +3,17 @@ import { api, obterMensagemErro } from '../services/api';
 import { categoriaQueryParam, getSetorAtivo } from '../services/setor';
 import {
   Send, Briefcase, UserPlus, UploadCloud, FileText, Trash2,
-  Loader2, CheckCircle2, Wallet, X, Edit2, Plus,
+  Loader2, CheckCircle2, Wallet, X, Edit2, Plus, Eye,
 } from 'lucide-react';
 import EditarDespesaInline from '../components/EditarDespesaInline';
+import ModalNotaDigitalizada from '../components/ModalNotaDigitalizada';
+import { visualizarArquivo } from '../services/visualizar';
+import { rotuloMeses } from '../services/meses';
 
 const heading = { fontFamily: "'Varela Round', sans-serif" };
 const TODOS_OS_MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 const CORES_SETOR = { ESPORTE: 'emerald', CULTURA: 'amber' };
+const MES_ATUAL = TODOS_OS_MESES[new Date().getMonth()];
 
 export default function LancarDespesa() {
   const [parcelas, setParcelas] = useState([]);
@@ -20,9 +24,10 @@ export default function LancarDespesa() {
 
   // Formulário
   const [formAberto, setFormAberto] = useState(false);
-  const [modo, setModo] = useState('INSTRUTOR'); // INSTRUTOR | AVULSO
+  const [modo, setModo] = useState('AVULSO'); // INSTRUTOR | AVULSO
   const [isSaving, setIsSaving] = useState(false);
   const [isLendoNota, setIsLendoNota] = useState(false);
+  const [modalNota, setModalNota] = useState(null);
 
   // Campos instrutor
   const [instrutorId, setInstrutorId] = useState('');
@@ -42,8 +47,9 @@ export default function LancarDespesa() {
       const res = await api.get('/parcelas', { params: categoriaQueryParam() });
       setParcelas(res.data);
       if (res.data.length > 0) {
-        const atual = parcelaSelecionada ? res.data.find(p => p.id === parcelaSelecionada.id) : res.data[0];
-        setParcelaSelecionada(atual || res.data[0]);
+        const manterSelecionada = parcelaSelecionada ? res.data.find(p => p.id === parcelaSelecionada.id) : null;
+        const parcelaMesAtual = res.data.find(p => p.mesesReferencia && p.mesesReferencia.split(', ').includes(MES_ATUAL));
+        setParcelaSelecionada(manterSelecionada || parcelaMesAtual || res.data[0]);
       } else {
         setParcelaSelecionada(null);
       }
@@ -89,6 +95,7 @@ export default function LancarDespesa() {
     setNomeEmpresa('');
     setObservacao('');
     setIsLendoNota(false);
+    setModalNota(null);
   };
 
   const trocarModo = (novoModo) => {
@@ -141,7 +148,16 @@ export default function LancarDespesa() {
       }
     } catch (error) {
       console.error("Erro na leitura OCR:", error);
+
+      const status = error.response?.status;
+      const mensagemErro = error.response?.data?.mensagem || "Não foi possível ler a nota automaticamente.";
+
       setDadosNota({ emitente: "", valor: "", data: "", numero: "", descricao: "" });
+      setModalNota(
+        status === 422
+          ? mensagemErro
+          : "Não conseguimos extrair os dados automaticamente. Você pode visualizar a nota ou preencher as informações manualmente."
+      );
     } finally {
       setIsLendoNota(false);
     }
@@ -260,7 +276,7 @@ export default function LancarDespesa() {
             >
               {parcelas.map(p => (
                 <option key={p.id} value={p.id}>
-                  {p.categoria === 'ESPORTE' ? 'Esporte' : 'Cultura'} — Parcela 0{p.numero} {p.mesesReferencia ? `(${p.mesesReferencia.split(', ').length} meses)` : ''}
+                  {p.categoria === 'ESPORTE' ? 'Esporte' : 'Cultura'} — Parcela 0{p.numero} {rotuloMeses(p.mesesReferencia)}
                 </option>
               ))}
             </select>
@@ -347,12 +363,24 @@ export default function LancarDespesa() {
               <div>
                 <label className="block text-xs font-bold text-stone-700 mb-1.5 uppercase">Nota Fiscal (Obrigatório)</label>
                 {isLendoNota ? (
-                  <div className="border border-cream-200 bg-cream-50 p-6 rounded-2xl text-center flex flex-col items-center justify-center">
-                    <Loader2 className="w-6 h-6 text-brand-700 animate-spin mb-2" />
-                    <h3 className="font-semibold text-sm text-stone-700">Lendo PDF...</h3>
+                  <div className="border border-cream-200 bg-cream-50 p-6 rounded-2xl text-center flex flex-col items-center justify-center animate-in fade-in duration-150">
+                    <Loader2 className="w-7 h-7 text-brand-700 animate-spin mb-2.5" />
+                    <h3 className="font-semibold text-sm text-stone-700">Analisando nota fiscal...</h3>
+                    <p className="text-xs text-stone-500 mt-1.5 leading-relaxed max-w-[220px]">
+                      Não conseguimos extrair os dados automaticamente, aguarde nosso modelo extrair as informações.
+                    </p>
                   </div>
                 ) : arquivoNotaFiscal ? (
-                  <div className="border border-emerald-200 bg-emerald-50 p-5 rounded-2xl text-center flex flex-col items-center justify-center">
+                  <div className="relative border border-emerald-200 bg-emerald-50 p-5 rounded-2xl text-center flex flex-col items-center justify-center">
+                    <button
+                      type="button"
+                      onClick={() => visualizarArquivo(arquivoNotaFiscal)}
+                      className="absolute top-3 right-3 p-1.5 bg-white rounded-xl hover:bg-cream-50 text-stone-500 hover:text-brand-700 transition-colors border border-cream-200 cursor-pointer"
+                      title="Visualizar nota"
+                      aria-label="Visualizar nota"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                    </button>
                     <CheckCircle2 className="w-7 h-7 text-emerald-600 mb-2" strokeWidth={1.5} />
                     <h3 className="font-semibold text-sm text-emerald-900">Nota Anexada</h3>
                     <p className="text-xs mt-1 truncate max-w-[180px] text-stone-500">{arquivoNotaFiscal.name}</p>
@@ -506,6 +534,14 @@ export default function LancarDespesa() {
             </table>
           </div>
         </div>
+      )}
+    {/* MODAL: NOTA NÃO LIDA */}
+      {modalNota && (
+        <ModalNotaDigitalizada
+          mensagem={modalNota}
+          onFechar={() => setModalNota(null)}
+          onPreencherManual={() => setModalNota(null)}
+        />
       )}
     </div>
   );

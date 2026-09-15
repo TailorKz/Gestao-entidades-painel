@@ -26,7 +26,7 @@ export default function EmprestimosEventos() {
 
     // Estado de edição inline
     const [emEdicao, setEmEdicao] = useState(null);
-    const [dadosEdicao, setDadosEdicao] = useState({ equipamento: '', nomeRetirante: '', dataRetirada: '' });
+    const [dadosEdicao, setDadosEdicao] = useState({ equipamento: '', nomeRetirante: '', dataRetirada: '', dataEntrega: '' });
 
     // Estado do lembrete
     const [novoLembrete, setNovoLembrete] = useState({ titulo: '', data: todayStr() });
@@ -90,10 +90,10 @@ export default function EmprestimosEventos() {
     // --- EMPRÉSTIMOS: Editar ---
     const iniciarEdicao = (emp) => {
         setEmEdicao(emp);
-        setDadosEdicao({ equipamento: emp.equipamento, nomeRetirante: emp.nomeRetirante, dataRetirada: emp.dataRetirada });
+        setDadosEdicao({ equipamento: emp.equipamento, nomeRetirante: emp.nomeRetirante, dataRetirada: emp.dataRetirada, dataEntrega: emp.dataEntrega || '' });
     };
 
-    const cancelarEdicao = () => { setEmEdicao(null); setDadosEdicao({ equipamento: '', nomeRetirante: '', dataRetirada: '' }); };
+    const cancelarEdicao = () => { setEmEdicao(null); setDadosEdicao({ equipamento: '', nomeRetirante: '', dataRetirada: '', dataEntrega: '' }); };
 
     const handleSalvarEdicao = async () => {
         if (!dadosEdicao.equipamento.trim() || !dadosEdicao.nomeRetirante.trim()) return;
@@ -103,6 +103,7 @@ export default function EmprestimosEventos() {
                 equipamento: dadosEdicao.equipamento,
                 nomeRetirante: dadosEdicao.nomeRetirante,
                 dataRetirada: dadosEdicao.dataRetirada || todayStr(),
+                dataEntrega: dadosEdicao.dataEntrega || '',
                 categoria: getSetorAtivo()
             });
             cancelarEdicao();
@@ -247,7 +248,9 @@ export default function EmprestimosEventos() {
                                                         <td className="px-6 py-3.5">
                                                             <input type="date" className={inputEdicaoClass} value={dadosEdicao.dataRetirada} onChange={e => setDadosEdicao({...dadosEdicao, dataRetirada: e.target.value})} />
                                                         </td>
-                                                        <td className="px-6 py-3.5 text-sm text-stone-500">—</td>
+                                                        <td className="px-6 py-3.5">
+                                                            <input type="date" className={inputEdicaoClass} value={dadosEdicao.dataEntrega} onChange={e => setDadosEdicao({...dadosEdicao, dataEntrega: e.target.value})} />
+                                                        </td>
                                                         <td className="px-6 py-3.5 text-center">—</td>
                                                         <td className="px-6 py-3.5 text-right space-x-1">
                                                             <button onClick={handleSalvarEdicao} disabled={isSaving} className="p-1.5 rounded-md bg-emerald-600 text-white hover:bg-emerald-700 transition-colors disabled:opacity-50" title="Salvar">

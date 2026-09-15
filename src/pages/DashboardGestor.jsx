@@ -4,6 +4,8 @@ import { categoriaQueryParam } from '../services/setor';
 import { Users, AlertCircle, CheckCircle2, Clock3, TrendingUp, CalendarDays } from 'lucide-react';
 import { getSetorAtivo } from '../services/setor';
 
+import { rotuloMeses } from '../services/meses';
+
 const heading = { fontFamily: "'Varela Round', sans-serif" };
 
 export default function DashboardGestor() {
@@ -102,7 +104,7 @@ export default function DashboardGestor() {
                         >
                             {parcelas.map(p => (
                                 <option key={p.id} value={p.id}>
-                                    {p.categoria === 'ESPORTE' ? 'Esporte' : 'Cultura'} — Parcela 0{p.numero} {p.mesesReferencia ? `(${p.mesesReferencia.split(', ').length} meses)` : ''}
+                                    {p.categoria === 'ESPORTE' ? 'Esporte' : 'Cultura'} — Parcela 0{p.numero} {rotuloMeses(p.mesesReferencia)}
                                 </option>
                             ))}
                             {parcelas.length === 0 && <option>Nenhuma parcela cadastrada</option>}

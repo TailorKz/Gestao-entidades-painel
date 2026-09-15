@@ -4,10 +4,12 @@ import { categoriaQueryParam, getSetorAtivo } from '../services/setor';
 import { Calculator, Activity, Trash2, Check, Loader2, Plus, Edit2, X, CalendarDays, FileDown } from 'lucide-react';
 import EditarDespesaInline from '../components/EditarDespesaInline';
 import { exportarPdfProjecao, exportarPdfPrestacoes } from '../services/exportarPdf';
+import { rotuloMeses } from '../services/meses';
 
 const heading = { fontFamily: "'Varela Round', sans-serif" };
 
 const TODOS_OS_MESES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+const MES_ATUAL = TODOS_OS_MESES[new Date().getMonth()];
 
 export default function PrestacaoGestor() {
     const [parcelas, setParcelas] = useState([]);
@@ -34,9 +36,10 @@ export default function PrestacaoGestor() {
             const res = await api.get('/parcelas', { params: categoriaQueryParam() });
             if (res.data.length > 0) {
                 setParcelas(res.data);
-                // Se já tinha uma selecionada, tenta manter ela, senão pega a primeira
-                const manterSelecionada = parcelaSelecionada ? res.data.find(p => p.id === parcelaSelecionada.id) : res.data[0];
-                setParcelaSelecionada(manterSelecionada || res.data[0]);
+                // Mantém a selecionada se ainda existir; senão abre na parcela do mês atual
+                const manterSelecionada = parcelaSelecionada ? res.data.find(p => p.id === parcelaSelecionada.id) : null;
+                const parcelaMesAtual = res.data.find(p => p.mesesReferencia && p.mesesReferencia.split(', ').includes(MES_ATUAL));
+                setParcelaSelecionada(manterSelecionada || parcelaMesAtual || res.data[0]);
             } else {
                 setParcelas([]);
                 setParcelaSelecionada(null);
@@ -212,7 +215,7 @@ export default function PrestacaoGestor() {
                         >
                             {parcelas.map(p => (
                                 <option key={p.id} value={p.id}>
-                                    {p.categoria === 'ESPORTE' ? 'Esporte' : 'Cultura'} — Parcela 0{p.numero} {p.mesesReferencia ? `(${p.mesesReferencia.split(', ').length} meses)` : ''}
+                                    {p.categoria === 'ESPORTE' ? 'Esporte' : 'Cultura'} — Parcela 0{p.numero} {rotuloMeses(p.mesesReferencia)}
                                 </option>
                             ))}
                         </select>

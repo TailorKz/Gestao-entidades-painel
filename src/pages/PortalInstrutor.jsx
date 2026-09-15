@@ -16,8 +16,11 @@ import {
   ShieldCheck,
   Activity,
   Music,
+  Eye,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import ModalNotaDigitalizada from "../components/ModalNotaDigitalizada";
+import { visualizarArquivo } from "../services/visualizar";
 
 const heading = { fontFamily: "'Varela Round', sans-serif" };
 
@@ -50,6 +53,7 @@ export default function PortalInstrutor() {
   // Estados do Motor de OCR
   const [isLendoNota, setIsLendoNota] = useState(false);
   const [showFormulario, setShowFormulario] = useState(false);
+  const [modalNota, setModalNota] = useState(null);
 
   const [dadosNota, setDadosNota] = useState({
     emitente: "",
@@ -164,7 +168,21 @@ export default function PortalInstrutor() {
       });
     } catch (error) {
       console.error("Erro na leitura do OCR:", error);
+      
+      // Pega a mensagem do Java (ex: "Documento digitalizado...") ou usa uma padrão
+      const status = error.response?.status;
+      const mensagemErro = error.response?.data?.mensagem || "Não foi possível ler a nota automaticamente.";
+
+      // Força a gaveta a abrir para edição manual depois que o usuário escolher
+      setShowFormulario(true);
+      setIsEditing(false);
+
       setDadosNota({ emitente: "", valor: "", data: "", numero: "", descricao: "" });
+      setModalNota(
+        status === 422
+          ? mensagemErro
+          : "Não conseguimos extrair os dados automaticamente. Você pode visualizar a nota ou preencher as informações manualmente."
+      );
     } finally {
       setIsLendoNota(false);
     }
@@ -423,20 +441,34 @@ export default function PortalInstrutor() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* BLOCO 1: NOTA FISCAL */}
               {isLendoNota ? (
-                <div className="border border-cream-200 bg-cream-50 p-7 rounded-2xl text-center flex flex-col items-center justify-center">
+                <div className="border border-cream-200 bg-cream-50 p-7 rounded-2xl text-center flex flex-col items-center justify-center animate-in fade-in duration-150">
                   <Loader2 className="w-7 h-7 text-brand-700 animate-spin mb-3" />
-                  <h3 className="font-semibold text-sm text-stone-700">Lendo PDF...</h3>
+                  <h3 className="font-semibold text-sm text-stone-700">Analisando nota fiscal...</h3>
+                  <p className="text-xs text-stone-500 mt-1.5 leading-relaxed max-w-[240px]">
+                    Não conseguimos extrair os dados automaticamente, aguarde nosso modelo extrair as informações.
+                  </p>
                 </div>
               ) : arquivoNotaFiscal ? (
                 <div className={`border p-5 rounded-2xl text-center flex flex-col items-center justify-center relative transition-colors ${temPendenciaOCR ? "border-amber-200 bg-amber-50" : "border-emerald-200 bg-emerald-50"}`}>
-                  <button
-                    type="button"
-                    onClick={() => setShowFormulario(!showFormulario)}
-                    className="absolute top-3 right-3 p-1.5 bg-white rounded-xl hover:bg-cream-50 text-stone-500 transition-colors border border-cream-200"
-                    title="Ver/Editar Dados"
-                  >
-                    <Edit2 className="w-3.5 h-3.5" />
-                  </button>
+                  <div className="absolute top-3 right-3 flex gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => visualizarArquivo(arquivoNotaFiscal)}
+                      className="p-1.5 bg-white rounded-xl hover:bg-cream-50 text-stone-500 hover:text-brand-700 transition-colors border border-cream-200 cursor-pointer"
+                      title="Visualizar nota"
+                      aria-label="Visualizar nota"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowFormulario(!showFormulario)}
+                      className="p-1.5 bg-white rounded-xl hover:bg-cream-50 text-stone-500 transition-colors border border-cream-200"
+                      title="Ver/Editar Dados"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
 
                   {temPendenciaOCR ? (
                     <AlertTriangle className="w-8 h-8 text-amber-500 mb-2.5" strokeWidth={1.5} />
@@ -550,6 +582,18 @@ export default function PortalInstrutor() {
               </div>
             )}
           </form>
+        )}
+
+        {/* MODAL: NOTA NÃO LIDA */}
+        {modalNota && (
+          <ModalNotaDigitalizada
+            mensagem={modalNota}
+            onFechar={() => setModalNota(null)}
+            onPreencherManual={() => {
+              setModalNota(null);
+              setIsEditing(true);
+            }}
+          />
         )}
       </main>
     </div>
