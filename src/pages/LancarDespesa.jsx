@@ -37,7 +37,7 @@ export default function LancarDespesa() {
   const [observacao, setObservacao] = useState('');
   const [arquivoNotaFiscal, setArquivoNotaFiscal] = useState(null);
   const [anexosExtras, setAnexosExtras] = useState([]);
-  const [dadosNota, setDadosNota] = useState({ emitente: '', valor: '', data: '', numero: '', descricao: '' });
+  const [dadosNota, setDadosNota] = useState({ emitente: '', valor: '', data: '', numero: '', descricao: '', documento: '' });
   const [nomeEmpresa, setNomeEmpresa] = useState('');
   const limite30MB = 30 * 1024 * 1024;
 
@@ -134,6 +134,7 @@ export default function LancarDespesa() {
         data: dataFormatada || "",
         numero: extraido.numero || "",
         descricao: extraido.descricao || "",
+        documento: extraido.documento || "",
       });
 
       // Auto-preencher nome da empresa no modo avulso
@@ -152,7 +153,7 @@ export default function LancarDespesa() {
       const status = error.response?.status;
       const mensagemErro = error.response?.data?.mensagem || "Não foi possível ler a nota automaticamente.";
 
-      setDadosNota({ emitente: "", valor: "", data: "", numero: "", descricao: "" });
+      setDadosNota({ emitente: "", valor: "", data: "", numero: "", descricao: "", documento: "" });
       setModalNota(
         status === 422
           ? mensagemErro
@@ -216,6 +217,7 @@ export default function LancarDespesa() {
     formData.append("descricao", dadosNota.descricao);
     if (modo === 'AVULSO') formData.append("nomeEmpresa", nomeEmpresa.trim());
     if (observacao.trim()) formData.append("observacao", observacao.trim());
+    if (dadosNota.documento) formData.append("documentoFavorecido", dadosNota.documento);
     formData.append("notaFiscal", arquivoNotaFiscal);
     if (anexosExtras.length > 0) anexosExtras.forEach(a => formData.append("anexosExtras", a));
 

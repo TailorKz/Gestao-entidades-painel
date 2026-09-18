@@ -8,6 +8,7 @@ export default function EditarDespesaInline({ despesa, mesesDisponiveis, onCance
   const [valor, setValor] = useState(() => Number(despesa.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 }));
   const [nomeEmpresa, setNomeEmpresa] = useState(despesa.nomeEmpresa || '');
   const [emitente, setEmitente] = useState(despesa.emitente || '');
+  const [documentoFavorecido, setDocumentoFavorecido] = useState(despesa.documentoFavorecido || '');
   const [observacao, setObservacao] = useState(despesa.observacao || '');
   const [mesAtual, setMesAtual] = useState(() => {
     const m = (despesa.dataCompetencia || '').split('-')[1];
@@ -34,6 +35,7 @@ export default function EditarDespesaInline({ despesa, mesesDisponiveis, onCance
         dataCompetencia: competencia,
         emitente: emitente.trim(),
         nomeEmpresa: nomeEmpresa.trim() || null,
+        documentoFavorecido: documentoFavorecido.replace(/[^0-9]/g, "") || null,
         observacao: observacao.trim() || null,
       });
       onSalvo();
@@ -47,8 +49,8 @@ export default function EditarDespesaInline({ despesa, mesesDisponiveis, onCance
 
   return (
     <tr className="bg-amber-50/60">
-      <td colSpan={5} className="px-4 py-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3 items-end">
+      <td colSpan={7} className="px-4 py-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 items-end">
           <div>
             <label className="block text-[10px] font-bold text-stone-600 uppercase mb-1">Empresa</label>
             <input
@@ -63,6 +65,15 @@ export default function EditarDespesaInline({ despesa, mesesDisponiveis, onCance
               type="text"
               className="w-full px-3 py-2 border border-cream-200 bg-white rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-500/40"
               value={emitente} onChange={(e) => setEmitente(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="block text-[10px] font-bold text-stone-600 uppercase mb-1">CPF/CNPJ do favorecido</label>
+            <input
+              type="text"
+              placeholder="Ex: 00.000.000/0000-00"
+              className="w-full px-3 py-2 border border-cream-200 bg-white rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-500/40"
+              value={documentoFavorecido} onChange={(e) => setDocumentoFavorecido(e.target.value)}
             />
           </div>
           <div>

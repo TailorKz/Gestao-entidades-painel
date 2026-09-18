@@ -165,6 +165,7 @@ export default function PortalInstrutor() {
         data: dataFormatada || "",
         numero: extraido.numero || "",
         descricao: extraido.descricao || "",
+        documento: extraido.documento || "",
       });
     } catch (error) {
       console.error("Erro na leitura do OCR:", error);
@@ -177,7 +178,7 @@ export default function PortalInstrutor() {
       setShowFormulario(true);
       setIsEditing(false);
 
-      setDadosNota({ emitente: "", valor: "", data: "", numero: "", descricao: "" });
+      setDadosNota({ emitente: "", valor: "", data: "", numero: "", descricao: "", documento: "" });
       setModalNota(
         status === 422
           ? mensagemErro
@@ -240,6 +241,7 @@ export default function PortalInstrutor() {
     formData.append("dataEmissao", dadosNota.data);
     formData.append("numero", dadosNota.numero);
     formData.append("descricao", dadosNota.descricao);
+    if (dadosNota.documento) formData.append("documentoFavorecido", dadosNota.documento);
 
     formData.append("notaFiscal", arquivoNotaFiscal);
 

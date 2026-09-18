@@ -1,8 +1,9 @@
-import { useState, useEffect, Fragment } from 'react';
+import { useState, useEffect, Fragment, useRef } from 'react';
 import { api, obterMensagemErro } from '../services/api';
 import { categoriaQueryParam, getSetorAtivo } from '../services/setor';
-import { Calculator, Activity, Trash2, Check, Loader2, Plus, Edit2, X, CalendarDays, FileDown } from 'lucide-react';
+import { Calculator, Activity, Trash2, Check, Loader2, Plus, Edit2, X, CalendarDays, FileDown, Landmark, Files } from 'lucide-react';
 import EditarDespesaInline from '../components/EditarDespesaInline';
+import ModalConciliacao from '../components/ModalConciliacao';
 import { exportarPdfProjecao, exportarPdfPrestacoes } from '../services/exportarPdf';
 import { rotuloMeses } from '../services/meses';
 
@@ -25,6 +26,12 @@ export default function PrestacaoGestor() {
     const [estimativaEmEdicao, setEstimativaEmEdicao] = useState(null);
     const [dadosEstEdicao, setDadosEstEdicao] = useState({ descricao: '', valor: '' });
     const [despesaEmEdicao, setDespesaEmEdicao] = useState(null);
+    const [modalConciliacao, setModalConciliacao] = useState(false);
+
+    // Anexar comprovante individual
+    const inputComprovanteRef = useRef(null);
+    const [despesaAnexandoId, setDespesaAnexandoId] = useState(null);
+    const [anexandoComp, setAnexandoComp] = useState(false);
 
     // Estados do Modal
     const [modalParcela, setModalParcela] = useState({ aberto: false, modo: 'NOVA' });
@@ -56,6 +63,33 @@ export default function PrestacaoGestor() {
             setDespesas(resDespesas.data);
             setEstimativas(resEstimativas.data);
         } catch (error) { console.error("Erro ao carregar gastos:", error); }
+    };
+
+    const handleAnexarComprovante = async (despesa) => {
+        inputComprovanteRef.current?.click();
+        setDespesaAnexandoId(despesa.id);
+    };
+
+    const handleArquivoComprovante = async (e) => {
+        const arquivo = e.target.files[0];
+        e.target.value = '';
+        const despesaId = despesaAnexandoId;
+        if (!arquivo || !despesaId) return;
+        if (!arquivo.name.toLowerCase().endsWith('.pdf')) return alert("Envie o comprovante em formato PDF.");
+        setAnexandoComp(true);
+        try {
+            const formData = new FormData();
+            formData.append("arquivo", arquivo);
+            await api.post(`/despesas/${despesaId}/anexar-comprovante`, formData, {
+                headers: { "Content-Type": "multipart/form-data" },
+            });
+            await carregarGastosDaParcela(parcelaSelecionada.id);
+        } catch (error) {
+            alert(obterMensagemErro(error, "Erro ao anexar o comprovante."));
+        } finally {
+            setAnexandoComp(false);
+            setDespesaAnexandoId(null);
+        }
     };
 
     useEffect(() => {
@@ -261,6 +295,14 @@ export default function PrestacaoGestor() {
                     </button>
                 </div>
 
+                {abaAtiva === 'REAL' && parcelaSelecionada && (
+                    <button
+                        onClick={() => setModalConciliacao(true)}
+                        className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full border border-brand-200 bg-brand-50 text-brand-800 text-sm font-semibold hover:bg-brand-100 transition-colors"
+                    >
+                        <Landmark className="w-4 h-4" /> Conciliar Comprovantes BB
+                    </button>
+                )}
                 <button
                     onClick={() => {
                         const nomeUsuario = localStorage.getItem('usuarioNome') || 'Gestor';
@@ -364,22 +406,25 @@ export default function PrestacaoGestor() {
 
                 {/* TABELA: TEMPO REAL */}
                 {abaAtiva === 'REAL' && (
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse min-w-[560px]">
-                            <thead>
-                                <tr className="border-b-2 border-cream-200 text-stone-800 text-sm">
-                                    <th className="px-6 py-4 font-bold">Empresa</th>
-                                    <th className="px-6 py-4 font-bold">Competência</th>
-                                    <th className="px-6 py-4 font-bold">Valor (R$)</th>
-                                    <th className="px-6 py-4 font-bold">Status</th>
-                                    <th className="px-6 py-4 font-bold text-right">Ações</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {despesas.length === 0 ? (
-                                    <tr><td colSpan="5" className="px-6 py-12 text-center text-sm text-stone-500">Nenhuma prestação recebida para esta parcela.</td></tr>
-                                ) : (
-                                    despesas.map((despesa, index) => (
+                    <Fragment>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left border-collapse min-w-[560px]">
+                                <thead>
+                                    <tr className="border-b-2 border-cream-200 text-stone-800 text-sm">
+                                        <th className="px-6 py-4 font-bold">Empresa</th>
+                                        <th className="px-6 py-4 font-bold">Competência</th>
+                                        <th className="px-6 py-4 font-bold">Valor (R$)</th>
+                                        <th className="px-6 py-4 font-bold">Status</th>
+                                        <th className="px-6 py-4 font-bold text-center">NF</th>
+                                        <th className="px-6 py-4 font-bold text-center">Comprovante</th>
+                                        <th className="px-6 py-4 font-bold text-right">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {despesas.length === 0 ? (
+                                        <tr><td colSpan="7" className="px-6 py-12 text-center text-sm text-stone-500">Nenhuma prestação recebida para esta parcela.</td></tr>
+                                    ) : (
+                                        despesas.map((despesa, index) => (
                                         <Fragment key={despesa.id}>
                                         <tr className={`${index % 2 === 0 ? 'bg-white' : 'bg-cream-50/50'} border-b border-cream-100`}>
                                             <td className="px-6 py-4 text-sm">
@@ -389,6 +434,33 @@ export default function PrestacaoGestor() {
                                             <td className="px-6 py-4 text-sm text-stone-500">{despesa.dataCompetencia}</td>
                                             <td className="px-6 py-4 text-sm font-semibold text-stone-900">R$ {formatarMoeda(despesa.valor)}</td>
                                             <td className="px-6 py-4">{renderStatusReal(despesa.status)}</td>
+                                            <td className="px-6 py-4 text-center">
+                                                {despesa.temNotaFiscal ? (
+                                                    <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase">
+                                                        <Check className="w-3 h-3" /> NF
+                                                    </span>
+                                                ) : (
+                                                    <span className="inline-flex items-center justify-center w-7 h-7 rounded-full border border-stone-200 text-stone-400" title="Sem nota fiscal">
+                                                        <Files className="w-3.5 h-3.5" />
+                                                    </span>
+                                                )}
+                                            </td>
+                                            <td className="px-6 py-4 text-center">
+                                                {despesa.temComprovante ? (
+                                                    <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase">
+                                                        <Check className="w-3 h-3" /> Comp.
+                                                    </span>
+                                                ) : (
+                                                    <button
+                                                        onClick={() => handleAnexarComprovante(despesa)}
+                                                        disabled={anexandoComp && despesaAnexandoId === despesa.id}
+                                                        className="inline-flex items-center justify-center w-7 h-7 rounded-full border-2 border-dashed border-brand-300 text-brand-600 hover:bg-brand-50 transition-colors disabled:opacity-50"
+                                                        title="Anexar comprovante (PDF)"
+                                                    >
+                                                        {anexandoComp && despesaAnexandoId === despesa.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+                                                    </button>
+                                                )}
+                                            </td>
                                             <td className="px-6 py-4 text-right space-x-1">
                                                 <button onClick={() => setDespesaEmEdicao(despesaEmEdicao?.id === despesa.id ? null : despesa)} className="text-stone-400 hover:text-brand-700 transition-colors p-1.5 rounded-md" title="Editar">
                                                     <Edit2 className="w-4 h-4" />
@@ -410,9 +482,11 @@ export default function PrestacaoGestor() {
                                     ))
                                 )}
                             </tbody>
-                        </table>
-                    </div>
-                )}
+                                </table>
+                            </div>
+                            <input ref={inputComprovanteRef} type="file" accept=".pdf" className="hidden" onChange={handleArquivoComprovante} />
+                        </Fragment>
+                    )}
             </div>
 
             {/* MODAL DE PARCELA COM SELEÇÃO DE MESES */}
@@ -486,6 +560,16 @@ export default function PrestacaoGestor() {
                         </form>
                     </div>
                 </div>
+            )}
+
+        {/* MODAL DE CONCILIAÇÃO DE COMPROVANTES */}
+            {modalConciliacao && parcelaSelecionada && (
+                <ModalConciliacao
+                    parcela={parcelaSelecionada}
+                    despesas={despesas}
+                    onFechar={() => setModalConciliacao(false)}
+                    onProcessado={() => carregarGastosDaParcela(parcelaSelecionada.id)}
+                />
             )}
 
         </div>
