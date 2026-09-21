@@ -1,7 +1,7 @@
-import { useState, useEffect, Fragment, useRef } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { api, obterMensagemErro } from '../services/api';
 import { categoriaQueryParam, getSetorAtivo } from '../services/setor';
-import { Calculator, Activity, Trash2, Check, Loader2, Plus, Edit2, X, CalendarDays, FileDown, Landmark, Files } from 'lucide-react';
+import { Calculator, Activity, Trash2, Check, Loader2, Plus, Edit2, X, CalendarDays, FileDown, Landmark, Files, Minus } from 'lucide-react';
 import EditarDespesaInline from '../components/EditarDespesaInline';
 import ModalConciliacao from '../components/ModalConciliacao';
 import { exportarPdfProjecao, exportarPdfPrestacoes } from '../services/exportarPdf';
@@ -27,11 +27,6 @@ export default function PrestacaoGestor() {
     const [dadosEstEdicao, setDadosEstEdicao] = useState({ descricao: '', valor: '' });
     const [despesaEmEdicao, setDespesaEmEdicao] = useState(null);
     const [modalConciliacao, setModalConciliacao] = useState(false);
-
-    // Anexar comprovante individual
-    const inputComprovanteRef = useRef(null);
-    const [despesaAnexandoId, setDespesaAnexandoId] = useState(null);
-    const [anexandoComp, setAnexandoComp] = useState(false);
 
     // Estados do Modal
     const [modalParcela, setModalParcela] = useState({ aberto: false, modo: 'NOVA' });
@@ -63,33 +58,6 @@ export default function PrestacaoGestor() {
             setDespesas(resDespesas.data);
             setEstimativas(resEstimativas.data);
         } catch (error) { console.error("Erro ao carregar gastos:", error); }
-    };
-
-    const handleAnexarComprovante = async (despesa) => {
-        inputComprovanteRef.current?.click();
-        setDespesaAnexandoId(despesa.id);
-    };
-
-    const handleArquivoComprovante = async (e) => {
-        const arquivo = e.target.files[0];
-        e.target.value = '';
-        const despesaId = despesaAnexandoId;
-        if (!arquivo || !despesaId) return;
-        if (!arquivo.name.toLowerCase().endsWith('.pdf')) return alert("Envie o comprovante em formato PDF.");
-        setAnexandoComp(true);
-        try {
-            const formData = new FormData();
-            formData.append("arquivo", arquivo);
-            await api.post(`/despesas/${despesaId}/anexar-comprovante`, formData, {
-                headers: { "Content-Type": "multipart/form-data" },
-            });
-            await carregarGastosDaParcela(parcelaSelecionada.id);
-        } catch (error) {
-            alert(obterMensagemErro(error, "Erro ao anexar o comprovante."));
-        } finally {
-            setAnexandoComp(false);
-            setDespesaAnexandoId(null);
-        }
     };
 
     useEffect(() => {
@@ -451,14 +419,9 @@ export default function PrestacaoGestor() {
                                                         <Check className="w-3 h-3" /> Comp.
                                                     </span>
                                                 ) : (
-                                                    <button
-                                                        onClick={() => handleAnexarComprovante(despesa)}
-                                                        disabled={anexandoComp && despesaAnexandoId === despesa.id}
-                                                        className="inline-flex items-center justify-center w-7 h-7 rounded-full border-2 border-dashed border-brand-300 text-brand-600 hover:bg-brand-50 transition-colors disabled:opacity-50"
-                                                        title="Anexar comprovante (PDF)"
-                                                    >
-                                                        {anexandoComp && despesaAnexandoId === despesa.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
-                                                    </button>
+                                                    <span className="inline-flex items-center justify-center w-7 h-7 rounded-full border border-dashed border-stone-300 text-stone-300" title="Sem comprovante vinculado">
+                                                        <Minus className="w-3.5 h-3.5" />
+                                                    </span>
                                                 )}
                                             </td>
                                             <td className="px-6 py-4 text-right space-x-1">
@@ -484,7 +447,6 @@ export default function PrestacaoGestor() {
                             </tbody>
                                 </table>
                             </div>
-                            <input ref={inputComprovanteRef} type="file" accept=".pdf" className="hidden" onChange={handleArquivoComprovante} />
                         </Fragment>
                     )}
             </div>

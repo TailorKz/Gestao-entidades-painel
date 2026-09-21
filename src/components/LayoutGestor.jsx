@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, LogOut, Wallet, Activity, Music, Send, ArrowLeftRight, Bell, Dumbbell, Menu, X } from 'lucide-react';
+import { LayoutDashboard, Users, LogOut, Wallet, Activity, Music, Send, ArrowLeftRight, Bell, Dumbbell, Menu, X, Landmark } from 'lucide-react';
 import { SETORES, getSetorAtivo, setSetorAtivo } from '../services/setor';
 import { api } from '../services/api';
 
@@ -85,6 +85,7 @@ export default function LayoutGestor() {
   const menuItems = [
     { path: '/gestor', label: 'Visão Geral', icon: LayoutDashboard },
     { path: '/prestacoes', label: 'Controle de Parcelas', icon: Wallet },
+    { path: '/comprovantes', label: 'Comprovantes', icon: Landmark },
     { path: '/lancar-despesa', label: 'Lançar Despesa', icon: Send },
     { path: '/emprestimos-eventos', label: 'Empréstimos e Eventos', icon: ArrowLeftRight },
     { path: '/ginasios', label: 'Controle de Ginásios', icon: Dumbbell },

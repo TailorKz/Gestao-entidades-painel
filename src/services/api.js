@@ -18,7 +18,10 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
     (res) => res,
     (error) => {
-        if (error.response?.status === 401) {
+        const url = error.config?.url || '';
+        const tinhaSessao = !!localStorage.getItem('token');
+        const endpointAutenticacao = url.startsWith('/auth/');
+        if (error.response?.status === 401 && tinhaSessao && !endpointAutenticacao) {
             localStorage.clear();
             window.location.href = '/';
         }

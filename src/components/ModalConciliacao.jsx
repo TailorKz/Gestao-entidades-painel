@@ -13,6 +13,7 @@ export default function ModalConciliacao({ parcela, despesas, onFechar, onProces
   const [vinculados, setVinculados] = useState([]);
   const [pendentes, setPendentes] = useState([]);
   const [duplicados, setDuplicados] = useState(0);
+  const [erros, setErros] = useState([]);
   const [processou, setProcessou] = useState(false);
   const [vincularPara, setVincularPara] = useState({});
   const [vinculandoId, setVinculandoId] = useState(null);
@@ -59,6 +60,7 @@ export default function ModalConciliacao({ parcela, despesas, onFechar, onProces
       });
       setVinculados(res.data.vinculados || []);
       setDuplicados(res.data.ignoradosDuplicados || 0);
+      setErros(res.data.erros || []);
       setProcessou(true);
       setArquivos([]);
       await Promise.all([carregarPendentes(), onProcessado()]);
@@ -150,6 +152,15 @@ export default function ModalConciliacao({ parcela, despesas, onFechar, onProces
             <p className="text-[11px] text-amber-600 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
               {duplicados} arquivo(s) ignorados por já terem sido importados antes.
             </p>
+          )}
+
+          {erros.length > 0 && (
+            <div className="bg-red-50 border border-red-200 rounded-xl px-3 py-2">
+              <p className="text-[11px] font-bold text-red-700 mb-1">Alguns arquivos não puderam ser lidos:</p>
+              <ul className="text-[11px] text-red-600 space-y-0.5 list-disc pl-4">
+                {erros.map((erro, i) => <li key={i}>{erro}</li>)}
+              </ul>
+            </div>
           )}
 
           {/* CONCILIADOS */}
