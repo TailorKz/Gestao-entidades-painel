@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { api, obterMensagemErro } from "../services/api";
+import { TIPOS_DOCUMENTO_GERR } from "../services/tiposDocumento";
 import {
   Edit2,
   CheckCircle2,
@@ -62,6 +63,7 @@ export default function PortalInstrutor() {
     numero: "",
     descricao: "",
   });
+  const [tipoDocumento, setTipoDocumento] = useState("");
 
   // Arquivos
   const [arquivoNotaFiscal, setArquivoNotaFiscal] = useState(null);
@@ -144,12 +146,16 @@ export default function PortalInstrutor() {
     setIsLendoNota(true);
     setShowFormulario(false);
 
+    const controller = new AbortController();
+    abortLeituraNotaRef.current = controller;
+
     const formData = new FormData();
     formData.append("arquivo", arquivo);
 
     try {
       const response = await api.post("/anexos/ler-nota", formData, {
         headers: { "Content-Type": "multipart/form-data" },
+        signal: controller.signal,
       });
 
       const extraido = response.data;
@@ -167,7 +173,10 @@ export default function PortalInstrutor() {
         descricao: extraido.descricao || "",
         documento: extraido.documento || "",
       });
+      setTipoDocumento(extraido.tipoDocumento || "");
     } catch (error) {
+      if (error?.code === 'ERR_CANCELED' || error?.name === 'CanceledError') return;
+
       console.error("Erro na leitura do OCR:", error);
       
       // Pega a mensagem do Java (ex: "Documento digitalizado...") ou usa uma padrão
@@ -187,6 +196,16 @@ export default function PortalInstrutor() {
     } finally {
       setIsLendoNota(false);
     }
+  };
+
+  const abortLeituraNotaRef = useRef(null);
+
+  const cancelarLeituraNota = () => {
+    abortLeituraNotaRef.current?.abort();
+    abortLeituraNotaRef.current = null;
+    setIsLendoNota(false);
+    setShowFormulario(true);
+    setIsEditing(false);
   };
 
   const handleAnexosExtras = (e) => {
@@ -239,10 +258,10 @@ export default function PortalInstrutor() {
     formData.append("emitente", dadosNota.emitente);
     formData.append("valor", dadosNota.valor);
     formData.append("dataEmissao", dadosNota.data);
-    formData.append("numero", dadosNota.numero);
+formData.append("numero", dadosNota.numero);
     formData.append("descricao", dadosNota.descricao);
     if (dadosNota.documento) formData.append("documentoFavorecido", dadosNota.documento);
-
+    if (tipoDocumento) formData.append("tipoDocumento", tipoDocumento);
     formData.append("notaFiscal", arquivoNotaFiscal);
 
     if (anexosExtras.length > 0) {
@@ -449,6 +468,13 @@ export default function PortalInstrutor() {
                   <p className="text-xs text-stone-500 mt-1.5 leading-relaxed max-w-[240px]">
                     Não conseguimos extrair os dados automaticamente, aguarde nosso modelo extrair as informações.
                   </p>
+                  <button
+                    type="button"
+                    onClick={cancelarLeituraNota}
+                    className="mt-4 px-4 py-2 bg-white border border-cream-300 hover:bg-cream-100 text-stone-600 text-xs font-semibold rounded-xl transition-colors cursor-pointer"
+                  >
+                    Cancelar e preencher manualmente
+                  </button>
                 </div>
               ) : arquivoNotaFiscal ? (
                 <div className={`border p-5 rounded-2xl text-center flex flex-col items-center justify-center relative transition-colors ${temPendenciaOCR ? "border-amber-200 bg-amber-50" : "border-emerald-200 bg-emerald-50"}`}>
@@ -569,6 +595,13 @@ export default function PortalInstrutor() {
                     <div>
                       <label className="block text-xs font-medium text-stone-700 mb-1.5">Descrição</label>
                       <input type="text" disabled={isLocked} className={`w-full px-3 py-2 border rounded-xl text-sm outline-none ${isLocked ? "bg-cream-50 text-stone-500" : "focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 border-cream-200"}`} value={dadosNota.descricao} onChange={(e) => setDadosNota({ ...dadosNota, descricao: e.target.value })} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-stone-700 mb-1.5">Tipo de Documento (GERR)</label>
+                      <select disabled={isLocked} className={`w-full px-3 py-2 border rounded-xl text-sm outline-none bg-white ${isLocked ? "bg-cream-50 text-stone-500" : "focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500 border-cream-200"}`} value={tipoDocumento} onChange={(e) => setTipoDocumento(e.target.value)}>
+                        <option value="">Selecione...</option>
+                        {TIPOS_DOCUMENTO_GERR.map(t => <option key={t.valor} value={t.valor}>{t.rotuloCompleto}</option>)}
+                      </select>
                     </div>
                   </div>
                 </div>

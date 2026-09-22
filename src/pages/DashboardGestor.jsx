@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { api } from '../services/api';
 import { categoriaQueryParam } from '../services/setor';
 import { Users, AlertCircle, CheckCircle2, Clock3, TrendingUp, CalendarDays } from 'lucide-react';
-import { getSetorAtivo } from '../services/setor';
+import { getSetorAtivo, selecionarParcela, salvarParcelaLembrada } from '../services/setor';
 
 import { rotuloMeses } from '../services/meses';
 
@@ -21,10 +21,7 @@ export default function DashboardGestor() {
             const res = await api.get('/parcelas', { params: categoriaQueryParam() });
             if (res.data.length > 0) {
                 setParcelas(res.data);
-                setParcelaSelecionada(prev => {
-                    if (prev && res.data.some(p => p.id === prev.id)) return prev;
-                    return res.data[0];
-                });
+                setParcelaSelecionada(prev => selecionarParcela({ parcelas: res.data, atual: prev, setor: getSetorAtivo() }));
             } else {
                 setParcelas([]);
                 setParcelaSelecionada(null);
@@ -100,6 +97,7 @@ export default function DashboardGestor() {
                             onChange={(e) => {
                                 const p = parcelas.find(x => x.id === e.target.value);
                                 setParcelaSelecionada(p);
+                                salvarParcelaLembrada(p?.id);
                             }}
                         >
                             {parcelas.map(p => (

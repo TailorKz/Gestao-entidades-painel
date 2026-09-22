@@ -1,11 +1,14 @@
 import { useState, useEffect, Fragment } from 'react';
 import { api, obterMensagemErro } from '../services/api';
-import { categoriaQueryParam, getSetorAtivo } from '../services/setor';
-import { Calculator, Activity, Trash2, Check, Loader2, Plus, Edit2, X, CalendarDays, FileDown, Landmark, Files, Minus } from 'lucide-react';
+import { categoriaQueryParam, getSetorAtivo, selecionarParcela, salvarParcelaLembrada } from '../services/setor';
+import { Calculator, Activity, Trash2, Check, Loader2, Plus, Edit2, X, CalendarDays, FileDown, Landmark, Minus, Tag, CheckCircle2, Clock, Eye } from 'lucide-react';
 import EditarDespesaInline from '../components/EditarDespesaInline';
 import ModalConciliacao from '../components/ModalConciliacao';
+import SelectResumido from '../components/SelectResumido';
 import { exportarPdfProjecao, exportarPdfPrestacoes } from '../services/exportarPdf';
 import { rotuloMeses } from '../services/meses';
+import { TIPOS_DOCUMENTO_GERR } from '../services/tiposDocumento';
+import { listarAcoesGerr } from '../services/acoesGerr';
 
 const heading = { fontFamily: "'Varela Round', sans-serif" };
 
@@ -38,10 +41,10 @@ export default function PrestacaoGestor() {
             const res = await api.get('/parcelas', { params: categoriaQueryParam() });
             if (res.data.length > 0) {
                 setParcelas(res.data);
-                // Mantém a selecionada se ainda existir; senão abre na parcela do mês atual
+                // Mantém a selecionada se ainda existir; senão usa a parcela lembrada por setor, ou a do mês atual
                 const manterSelecionada = parcelaSelecionada ? res.data.find(p => p.id === parcelaSelecionada.id) : null;
                 const parcelaMesAtual = res.data.find(p => p.mesesReferencia && p.mesesReferencia.split(', ').includes(MES_ATUAL));
-                setParcelaSelecionada(manterSelecionada || parcelaMesAtual || res.data[0]);
+                setParcelaSelecionada(selecionarParcela({ parcelas: res.data, atual: manterSelecionada || parcelaMesAtual, setor: getSetorAtivo() }));
             } else {
                 setParcelas([]);
                 setParcelaSelecionada(null);
@@ -129,20 +132,70 @@ export default function PrestacaoGestor() {
         } catch (error) { alert(obterMensagemErro(error, "Erro ao excluir a despesa.")); }
     };
 
+    const verNotaDaDespesa = async (despesa) => {
+        try {
+            const res = await api.get(`/despesas/${despesa.id}/anexos`);
+            const nota = (res.data || []).find(a => a.tipo === 'NOTA_FISCAL');
+            if (!nota || !nota.urlS3) return alert("Esta despesa não possui nota fiscal anexada.");
+            const apiBase = api.defaults.baseURL || 'http://localhost:8080';
+            window.open(`${apiBase}/arquivos/${encodeURIComponent(nota.urlS3)}`, '_blank');
+        } catch (error) {
+            console.error("Erro ao abrir a nota:", error);
+            alert("Não foi possível abrir a nota fiscal.");
+        }
+    };
+
     const renderStatusReal = (status) => {
         const verificada = status && status !== 'AGUARDANDO_DOCUMENTOS';
         return verificada ? (
-            <span className="inline-flex items-center gap-1.5 bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wide">
-                <Check className="w-3 h-3" /> Verificada
+            <span title="Verificada" className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-emerald-100 text-emerald-600">
+                <CheckCircle2 className="w-4 h-4" />
             </span>
         ) : (
-            <span className="inline-flex items-center gap-1.5 bg-amber-100 text-amber-800 px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wide">
-                Não verificada
+            <span title="Não verificada" className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-amber-100 text-amber-600">
+                <Clock className="w-4 h-4" />
             </span>
         );
     };
 
     const legendaEstimativa = (descricao) => (descricao || '').replace(/^Lançamento avulso\s+[—-]\s*/i, '');
+
+    const [modalTiposDocumento, setModalTiposDocumento] = useState(false);
+    const [tiposDraft, setTiposDraft] = useState({});
+    const [acoesDraft, setAcoesDraft] = useState({});
+    const [salvandoTipos, setSalvandoTipos] = useState(false);
+    const [acoesGerr, setAcoesGerr] = useState([]);
+
+    const abrirModalTiposDocumento = async () => {
+        setTiposDraft({});
+        setAcoesDraft({});
+        setModalTiposDocumento(true);
+        if (parcelaSelecionada?.categoria) {
+            try { setAcoesGerr(await listarAcoesGerr(parcelaSelecionada.categoria)); }
+            catch { setAcoesGerr([]); }
+        }
+    };
+
+    const salvarTiposDocumento = async () => {
+        const ids = new Set([...Object.keys(tiposDraft), ...Object.keys(acoesDraft)]);
+        if (ids.size === 0) { setModalTiposDocumento(false); return; }
+        setSalvandoTipos(true);
+        try {
+            const promessas = [];
+            for (const id of ids) {
+                if (tiposDraft[id] !== undefined && tiposDraft[id]) {
+                    promessas.push(api.patch(`/despesas/${id}/tipo-documento`, { tipoDocumento: tiposDraft[id] }));
+                }
+                if (acoesDraft[id] !== undefined) {
+                    promessas.push(api.patch(`/despesas/${id}/acao-gerr`, { acaoGerrId: acoesDraft[id] || null }));
+                }
+            }
+            await Promise.all(promessas);
+            setModalTiposDocumento(false);
+            await carregarGastosDaParcela(parcelaSelecionada.id);
+        } catch (error) { alert(obterMensagemErro(error, "Erro ao salvar os tipos e ações.")); }
+        finally { setSalvandoTipos(false); }
+    };
 
     // --- FUNÇÕES DA PARCELA ---
     const toggleMes = (mes) => {
@@ -213,6 +266,7 @@ export default function PrestacaoGestor() {
                             onChange={(e) => {
                                 const p = parcelas.find(x => x.id === e.target.value);
                                 setParcelaSelecionada(p);
+                                salvarParcelaLembrada(p?.id);
                             }}
                         >
                             {parcelas.map(p => (
@@ -264,12 +318,20 @@ export default function PrestacaoGestor() {
                 </div>
 
                 {abaAtiva === 'REAL' && parcelaSelecionada && (
-                    <button
-                        onClick={() => setModalConciliacao(true)}
-                        className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full border border-brand-200 bg-brand-50 text-brand-800 text-sm font-semibold hover:bg-brand-100 transition-colors"
-                    >
-                        <Landmark className="w-4 h-4" /> Conciliar Comprovantes BB
-                    </button>
+                    <Fragment>
+                        <button
+                            onClick={() => setModalConciliacao(true)}
+                            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full border border-brand-200 bg-brand-50 text-brand-800 text-sm font-semibold hover:bg-brand-100 transition-colors"
+                        >
+                            <Landmark className="w-4 h-4" /> Conciliar Comprovantes BB
+                        </button>
+                        <button
+                            onClick={() => abrirModalTiposDocumento()}
+                            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full border border-cream-300 bg-white text-stone-700 text-sm font-semibold hover:bg-cream-50 transition-colors"
+                        >
+                            <Tag className="w-4 h-4" /> Tipos e Ações (GERR)
+                        </button>
+                    </Fragment>
                 )}
                 <button
                     onClick={() => {
@@ -376,43 +438,31 @@ export default function PrestacaoGestor() {
                 {abaAtiva === 'REAL' && (
                     <Fragment>
                         <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse min-w-[560px]">
+                            <table className="w-full text-left border-collapse min-w-[640px]">
                                 <thead>
                                     <tr className="border-b-2 border-cream-200 text-stone-800 text-sm">
                                         <th className="px-6 py-4 font-bold">Empresa</th>
                                         <th className="px-6 py-4 font-bold">Competência</th>
                                         <th className="px-6 py-4 font-bold">Valor (R$)</th>
                                         <th className="px-6 py-4 font-bold">Status</th>
-                                        <th className="px-6 py-4 font-bold text-center">NF</th>
                                         <th className="px-6 py-4 font-bold text-center">Comprovante</th>
                                         <th className="px-6 py-4 font-bold text-right">Ações</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {despesas.length === 0 ? (
-                                        <tr><td colSpan="7" className="px-6 py-12 text-center text-sm text-stone-500">Nenhuma prestação recebida para esta parcela.</td></tr>
+                                        <tr><td colSpan="6" className="px-6 py-12 text-center text-sm text-stone-500">Nenhuma prestação recebida para esta parcela.</td></tr>
                                     ) : (
                                         despesas.map((despesa, index) => (
                                         <Fragment key={despesa.id}>
                                         <tr className={`${index % 2 === 0 ? 'bg-white' : 'bg-cream-50/50'} border-b border-cream-100`}>
                                             <td className="px-6 py-4 text-sm">
                                                 <span className="font-medium text-stone-700">{despesa.nomeEmpresa || despesa.emitente || '—'}</span>
-                                                {despesa.observacao && <span className="block text-xs text-stone-400 mt-0.5">Obs: {despesa.observacao}</span>}
+                                                {(despesa.descricao || despesa.observacao) && <span className="block text-xs text-stone-400 mt-0.5 truncate max-w-[260px]" title={despesa.descricao || despesa.observacao}>{despesa.descricao || despesa.observacao}</span>}
                                             </td>
                                             <td className="px-6 py-4 text-sm text-stone-500">{despesa.dataCompetencia}</td>
                                             <td className="px-6 py-4 text-sm font-semibold text-stone-900">R$ {formatarMoeda(despesa.valor)}</td>
                                             <td className="px-6 py-4">{renderStatusReal(despesa.status)}</td>
-                                            <td className="px-6 py-4 text-center">
-                                                {despesa.temNotaFiscal ? (
-                                                    <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase">
-                                                        <Check className="w-3 h-3" /> NF
-                                                    </span>
-                                                ) : (
-                                                    <span className="inline-flex items-center justify-center w-7 h-7 rounded-full border border-stone-200 text-stone-400" title="Sem nota fiscal">
-                                                        <Files className="w-3.5 h-3.5" />
-                                                    </span>
-                                                )}
-                                            </td>
                                             <td className="px-6 py-4 text-center">
                                                 {despesa.temComprovante ? (
                                                     <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase">
@@ -425,6 +475,9 @@ export default function PrestacaoGestor() {
                                                 )}
                                             </td>
                                             <td className="px-6 py-4 text-right space-x-1">
+                                                <button onClick={() => verNotaDaDespesa(despesa)} className="text-stone-400 hover:text-brand-700 transition-colors p-1.5 rounded-md" title="Visualizar nota fiscal">
+                                                    <Eye className="w-4 h-4" />
+                                                </button>
                                                 <button onClick={() => setDespesaEmEdicao(despesaEmEdicao?.id === despesa.id ? null : despesa)} className="text-stone-400 hover:text-brand-700 transition-colors p-1.5 rounded-md" title="Editar">
                                                     <Edit2 className="w-4 h-4" />
                                                 </button>
@@ -436,6 +489,7 @@ export default function PrestacaoGestor() {
                                         {despesaEmEdicao?.id === despesa.id && (
                                             <EditarDespesaInline
                                                 despesa={despesa}
+                                                categoria={parcelaSelecionada?.categoria}
                                                 mesesDisponiveis={parcelaSelecionada?.mesesReferencia ? parcelaSelecionada.mesesReferencia.split(', ').filter(m => TODOS_OS_MESES.includes(m)) : []}
                                                 onCancelar={() => setDespesaEmEdicao(null)}
                                                 onSalvo={async () => { setDespesaEmEdicao(null); await carregarGastosDaParcela(parcelaSelecionada.id); }}
@@ -532,6 +586,86 @@ export default function PrestacaoGestor() {
                     onFechar={() => setModalConciliacao(false)}
                     onProcessado={() => carregarGastosDaParcela(parcelaSelecionada.id)}
                 />
+            )}
+
+            {/* MODAL: TIPOS E AÇÕES GERR (EM LOTE) */}
+            {modalTiposDocumento && parcelaSelecionada && (
+                <div className="fixed inset-0 bg-stone-900/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
+                    <div className="bg-white rounded-2xl border border-cream-200 shadow-xl w-full max-w-3xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+                        <div className="px-5 py-4 border-b border-cream-200 flex justify-between items-center bg-cream-50">
+                            <div>
+                                <h3 style={heading} className="font-semibold text-stone-800 text-sm">Tipos e Ações (GERR)</h3>
+                                <p className="text-xs text-stone-500 mt-0.5">Parcela {parcelaSelecionada.numero} — classifique tipo e ação de cada nota e clique em Salvar.</p>
+                            </div>
+                            <button onClick={() => setModalTiposDocumento(false)} className="text-stone-400 hover:text-stone-700 transition-colors">
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        <div className="p-5 overflow-y-auto max-h-[60vh]">
+                            {despesas.length === 0 ? (
+                                <p className="text-sm text-stone-500 text-center py-8">Nenhuma despesa nesta parcela.</p>
+                            ) : (
+                                <ul className="space-y-2">
+                                    {despesas.map(despesa => {
+                                        const draftTipo = tiposDraft[despesa.id] !== undefined ? tiposDraft[despesa.id] : (despesa.tipoDocumento || '');
+                                        const draftAcao = acoesDraft[despesa.id] !== undefined ? acoesDraft[despesa.id] : (despesa.acaoGerrId || '');
+                                        const alteradoTipo = draftTipo !== (despesa.tipoDocumento || '');
+                                        const alteradoAcao = draftAcao !== (despesa.acaoGerrId || '');
+                                        const alterado = alteradoTipo || alteradoAcao;
+                                        return (
+                                            <li key={despesa.id} className={`flex items-center justify-between gap-3 bg-cream-50 border rounded-xl px-4 py-3 ${alterado ? 'border-brand-300 bg-brand-50/50' : 'border-cream-200'}`}>
+                                                <div className="min-w-0 w-44 shrink-0">
+                                                    <span className="block text-sm font-medium text-stone-800 truncate">{despesa.nomeEmpresa || despesa.emitente || '—'}</span>
+                                                    <span className="block text-[11px] text-stone-400 mt-0.5">{despesa.dataCompetencia} · R$ {formatarMoeda(despesa.valor)}</span>
+                                                </div>
+                                                <div className="flex items-center gap-2 flex-1 justify-end">
+                                                    <SelectResumido
+                                                        value={draftTipo}
+                                                        opcoes={TIPOS_DOCUMENTO_GERR.map(t => ({ valor: t.valor, rotulo: t.rotuloCompleto }))}
+                                                        placeholder="Tipo não definido"
+                                                        onChange={(valor) => setTiposDraft({ ...tiposDraft, [despesa.id]: valor })}
+                                                        widthClass="w-52 shrink-0"
+                                                    />
+                                                    <SelectResumido
+                                                        value={draftAcao}
+                                                        opcoes={acoesGerr.map(a => ({ valor: a.id, rotulo: a.nome }))}
+                                                        placeholder={acoesGerr.length === 0 ? 'Nenhuma ação cadastrada' : 'Ação não definida'}
+                                                        onChange={(valor) => setAcoesDraft({ ...acoesDraft, [despesa.id]: valor })}
+                                                        disabled={acoesGerr.length === 0}
+                                                        widthClass="w-64 shrink-0"
+                                                    />
+                                                </div>
+                                            </li>
+                                        );
+                                    })}
+                                </ul>
+                            )}
+                        </div>
+
+                        <div className="px-5 py-4 border-t border-cream-200 flex items-center justify-between">
+                            <p className="text-xs text-stone-500">
+                                {(Object.keys(tiposDraft).length + Object.keys(acoesDraft).length) > 0 && `${Object.keys(tiposDraft).length + Object.keys(acoesDraft).length} alteração(ões) pendente(s)`}
+                            </p>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => setModalTiposDocumento(false)}
+                                    className="px-4 py-2 rounded-xl border border-cream-300 text-stone-600 text-sm font-semibold hover:bg-cream-50 transition-colors"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={salvarTiposDocumento}
+                                    disabled={salvandoTipos}
+                                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-brand-700 hover:bg-brand-800 text-white text-sm font-semibold transition-colors disabled:opacity-60"
+                                >
+                                    {salvandoTipos && <Loader2 className="w-4 h-4 animate-spin" />}
+                                    Salvar
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             )}
 
         </div>

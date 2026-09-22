@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { api, obterMensagemErro } from '../services/api';
-import { categoriaQueryParam } from '../services/setor';
+import { categoriaQueryParam, getSetorAtivo, selecionarParcela, salvarParcelaLembrada } from '../services/setor';
 import { rotuloMeses } from '../services/meses';
 import {
   Landmark, Link2, Loader2, Check, X, FileText, CalendarDays,
-  ShieldCheck, FileWarning, Layers
+  ShieldCheck, FileWarning, Layers, Eye, Trash2
 } from 'lucide-react';
 import ModalConciliacao from '../components/ModalConciliacao';
 
@@ -34,7 +34,7 @@ export default function ComprovantesGestor() {
       const res = await api.get('/parcelas', { params: categoriaQueryParam() });
       if (res.data.length > 0) {
         setParcelas(res.data);
-        setParcelaSelecionada(prev => prev ? res.data.find(p => p.id === prev.id) || res.data[0] : res.data[0]);
+        setParcelaSelecionada(prev => selecionarParcela({ parcelas: res.data, atual: prev, setor: getSetorAtivo() }));
       }
     } catch { /* silencioso */ }
   }, []);
@@ -95,6 +95,25 @@ export default function ComprovantesGestor() {
     }
   };
 
+  const verPdf = (comp) => {
+    if (!comp.chaveS3) return;
+    const apiBase = api.defaults.baseURL || 'http://localhost:8080';
+    window.open(`${apiBase}/arquivos/${encodeURIComponent(comp.chaveS3)}`, '_blank');
+  };
+
+  const excluir = async (comp) => {
+    const confirmacao = comp.despesaId
+      ? "Excluir este comprovante? Ele será desvinculado da despesa e o arquivo apagado do S3."
+      : "Excluir este comprovante? O arquivo será apagado do S3.";
+    if (!window.confirm(confirmacao)) return;
+    try {
+      await api.delete(`/despesas/${parcelaSelecionada.id}/comprovantes/${comp.id}`);
+      await carregarComprovantes(parcelaSelecionada.id);
+    } catch (error) {
+      alert(obterMensagemErro(error, "Erro ao excluir o comprovante."));
+    }
+  };
+
   const StatusBadge = ({ comprovante }) => {
     if (!comprovante.despesaId) {
       return (
@@ -122,7 +141,11 @@ export default function ComprovantesGestor() {
           <select
             className="bg-brand-50 border border-brand-200 text-stone-800 text-lg rounded-xl focus:ring-brand-500 focus:border-brand-500 block p-2.5 font-semibold outline-none cursor-pointer min-w-[220px] w-full md:w-auto"
             value={parcelaSelecionada?.id || ''}
-            onChange={(e) => setParcelaSelecionada(parcelas.find(x => x.id === e.target.value))}
+            onChange={(e) => {
+              const p = parcelas.find(x => x.id === e.target.value);
+              setParcelaSelecionada(p);
+              salvarParcelaLembrada(p?.id);
+            }}
           >
             {parcelas.map(p => (
               <option key={p.id} value={p.id}>
@@ -222,6 +245,23 @@ export default function ComprovantesGestor() {
                 <div className="flex items-center gap-3 shrink-0">
                   <span className="text-base font-bold text-stone-900">{fmtValor(comp.valor)}</span>
                   <StatusBadge comprovante={comp} />
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => verPdf(comp)}
+                      disabled={!comp.chaveS3}
+                      className="p-2 rounded-lg text-brand-600 hover:bg-brand-50 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                      title={comp.chaveS3 ? 'Ver PDF' : 'Arquivo indisponível (comprovante antigo)'}
+                    >
+                      <Eye className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => excluir(comp)}
+                      className="p-2 rounded-lg text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+                      title="Excluir comprovante"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
 

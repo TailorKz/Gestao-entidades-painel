@@ -1,20 +1,33 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { api, obterMensagemErro } from '../services/api';
 import { Check, X, Loader2 } from 'lucide-react';
+import { TIPOS_DOCUMENTO_GERR } from '../services/tiposDocumento';
+import { listarAcoesGerr } from '../services/acoesGerr';
+import SelectResumido from './SelectResumido';
 
 const TODOS_OS_MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 
-export default function EditarDespesaInline({ despesa, mesesDisponiveis, onCancelar, onSalvo }) {
+export default function EditarDespesaInline({ despesa, mesesDisponiveis, onCancelar, onSalvo, categoria }) {
   const [valor, setValor] = useState(() => Number(despesa.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2 }));
   const [nomeEmpresa, setNomeEmpresa] = useState(despesa.nomeEmpresa || '');
   const [emitente, setEmitente] = useState(despesa.emitente || '');
   const [documentoFavorecido, setDocumentoFavorecido] = useState(despesa.documentoFavorecido || '');
-  const [observacao, setObservacao] = useState(despesa.observacao || '');
+  const [descricao, setDescricao] = useState(despesa.descricao || '');
+  const [tipoDocumento, setTipoDocumento] = useState(despesa.tipoDocumento || '');
+  const [acaoGerrId, setAcaoGerrId] = useState(despesa.acaoGerrId || '');
+  const [acoesGerr, setAcoesGerr] = useState([]);
   const [mesAtual, setMesAtual] = useState(() => {
     const m = (despesa.dataCompetencia || '').split('-')[1];
     return m ? parseInt(m, 10) : null;
   });
   const [isSaving, setIsSaving] = useState(false);
+
+  useEffect(() => {
+    if (!categoria) return;
+    let ativo = true;
+    listarAcoesGerr(categoria).then((data) => { if (ativo) setAcoesGerr(data); }).catch(() => { if (ativo) setAcoesGerr([]); });
+    return () => { ativo = false; };
+  }, [categoria]);
 
   const meses = [...(mesesDisponiveis && mesesDisponiveis.length > 0 ? mesesDisponiveis : TODOS_OS_MESES)];
   const nomeMesAtual = TODOS_OS_MESES[(mesAtual || 1) - 1];
@@ -35,8 +48,10 @@ export default function EditarDespesaInline({ despesa, mesesDisponiveis, onCance
         dataCompetencia: competencia,
         emitente: emitente.trim(),
         nomeEmpresa: nomeEmpresa.trim() || null,
+        descricao: descricao.trim() || null,
+        tipoDocumento: tipoDocumento || null,
+        acaoGerrId: acaoGerrId || null,
         documentoFavorecido: documentoFavorecido.replace(/[^0-9]/g, "") || null,
-        observacao: observacao.trim() || null,
       });
       onSalvo();
     } catch (error) {
@@ -91,15 +106,36 @@ export default function EditarDespesaInline({ despesa, mesesDisponiveis, onCance
               value={mesAtual || ''} onChange={(e) => setMesAtual(parseInt(e.target.value, 10))}
             >
               <option value="">Selecione...</option>
-              {meses.map((m, i) => (<option key={m} value={i + 1}>{m}</option>))}
+              {meses.map((m) => (<option key={m} value={TODOS_OS_MESES.indexOf(m) + 1}>{m}</option>))}
             </select>
           </div>
           <div>
-            <label className="block text-[10px] font-bold text-stone-600 uppercase mb-1">Observação</label>
+            <label className="block text-[10px] font-bold text-stone-600 uppercase mb-1">Descrição</label>
             <input
               type="text"
               className="w-full px-3 py-2 border border-cream-200 bg-white rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-500/40"
-              value={observacao} onChange={(e) => setObservacao(e.target.value)}
+              value={descricao} onChange={(e) => setDescricao(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="block text-[10px] font-bold text-stone-600 uppercase mb-1">Tipo de Documento (GERR)</label>
+            <select
+              className="w-full px-3 py-2 border border-cream-200 bg-white rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-500/40"
+              value={tipoDocumento} onChange={(e) => setTipoDocumento(e.target.value)}
+            >
+              <option value="">Não definido...</option>
+              {TIPOS_DOCUMENTO_GERR.map(t => (<option key={t.valor} value={t.valor}>{t.rotuloCompleto}</option>))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-[10px] font-bold text-stone-600 uppercase mb-1">Ação (GERR)</label>
+            <SelectResumido
+              value={acaoGerrId}
+              opcoes={acoesGerr.map(a => ({ valor: a.id, rotulo: a.nome }))}
+              placeholder={acoesGerr.length === 0 ? 'Nenhuma ação cadastrada' : 'Não definida...'}
+              onChange={setAcaoGerrId}
+              disabled={acoesGerr.length === 0}
+              widthClass="w-full"
             />
           </div>
         </div>

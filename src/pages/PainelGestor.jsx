@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api, obterMensagemErro } from '../services/api';
 import { categoriaQueryParam, getSetorAtivo } from '../services/setor';
-import { Users, UserPlus, X, Activity, Music, ArrowLeft, ArrowRight, FileText, Send } from 'lucide-react';
+import { Users, UserPlus, X, Activity, Music, ArrowLeft, ArrowRight, FileText, Send, Trash2 } from 'lucide-react';
 
 const heading = { fontFamily: "'Varela Round', sans-serif" };
 
@@ -28,6 +28,7 @@ export default function PainelGestor() {
   const [modalArquivosAberto, setModalArquivosAberto] = useState(false);
   const [arquivosDaDespesa, setArquivosDaDespesa] = useState([]);
   const [carregandoAnexos, setCarregandoAnexos] = useState(false);
+  const [despesaIdArquivos, setDespesaIdArquivos] = useState(null);
 
   const carregarInstrutores = async () => {
     try {
@@ -90,6 +91,7 @@ export default function PainelGestor() {
 
   const handleVerArquivos = async (despesaId) => {
     setModalArquivosAberto(true);
+    setDespesaIdArquivos(despesaId);
     setCarregandoAnexos(true);
     try {
       const response = await api.get(`/despesas/${despesaId}/anexos`);
@@ -98,6 +100,18 @@ export default function PainelGestor() {
       console.error("Erro ao buscar anexos:", error);
     } finally {
       setCarregandoAnexos(false);
+    }
+  };
+
+  const handleExcluirAnexo = async (anexo) => {
+    const rotulo = anexo.tipo === 'NOTA_FISCAL' ? 'nota fiscal' : 'arquivo';
+    if (!window.confirm(`Excluir ${rotulo} "${anexo.nomeOriginal}"? O arquivo será apagado do S3.`)) return;
+    try {
+      await api.delete(`/anexos/${anexo.id}`);
+      await handleVerArquivos(despesaIdArquivos);
+      if (instrutorSelecionado) await abrirPastaInstrutor(instrutorSelecionado);
+    } catch (error) {
+      alert(obterMensagemErro(error, "Erro ao excluir o arquivo."));
     }
   };
 
@@ -388,6 +402,13 @@ export default function PainelGestor() {
                         className="bg-brand-100 text-brand-700 hover:bg-brand-700 hover:text-white px-3 py-1.5 rounded-xl text-xs font-medium transition-colors"
                       >
                         Visualizar
+                      </button>
+                      <button
+                        onClick={() => handleExcluirAnexo(anexo)}
+                        className="text-stone-400 hover:text-red-600 transition-colors p-1.5"
+                        title={`Excluir ${anexo.tipo === 'NOTA_FISCAL' ? 'nota fiscal' : 'arquivo'}`}
+                      >
+                        <Trash2 className="w-4 h-4" />
                       </button>
                     </li>
                   ))}

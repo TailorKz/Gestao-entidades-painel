@@ -1,14 +1,18 @@
-import { useState, useEffect, Fragment } from 'react';
+import { useState, useEffect, Fragment, useRef } from 'react';
 import { api, obterMensagemErro } from '../services/api';
-import { categoriaQueryParam, getSetorAtivo } from '../services/setor';
+import { categoriaQueryParam, getSetorAtivo, selecionarParcela, salvarParcelaLembrada } from '../services/setor';
 import {
   Send, Briefcase, UserPlus, UploadCloud, FileText, Trash2,
-  Loader2, CheckCircle2, Wallet, X, Edit2, Plus, Eye,
+  Loader2, CheckCircle2, Wallet, X, Edit2, Plus, Eye, Clock,
 } from 'lucide-react';
 import EditarDespesaInline from '../components/EditarDespesaInline';
 import ModalNotaDigitalizada from '../components/ModalNotaDigitalizada';
+import SelectResumido from '../components/SelectResumido';
 import { visualizarArquivo } from '../services/visualizar';
 import { rotuloMeses } from '../services/meses';
+import { mesCompetenciaSugerido } from '../services/competencia';
+import { TIPOS_DOCUMENTO_GERR } from '../services/tiposDocumento';
+import { listarAcoesGerr } from '../services/acoesGerr';
 
 const heading = { fontFamily: "'Varela Round', sans-serif" };
 const TODOS_OS_MESES = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
@@ -39,6 +43,9 @@ export default function LancarDespesa() {
   const [anexosExtras, setAnexosExtras] = useState([]);
   const [dadosNota, setDadosNota] = useState({ emitente: '', valor: '', data: '', numero: '', descricao: '', documento: '' });
   const [nomeEmpresa, setNomeEmpresa] = useState('');
+  const [tipoDocumento, setTipoDocumento] = useState('');
+  const [acaoGerrId, setAcaoGerrId] = useState('');
+  const [acoesGerr, setAcoesGerr] = useState([]);
   const limite30MB = 30 * 1024 * 1024;
 
   // --- CARREGAMENTO ---
@@ -49,7 +56,7 @@ export default function LancarDespesa() {
       if (res.data.length > 0) {
         const manterSelecionada = parcelaSelecionada ? res.data.find(p => p.id === parcelaSelecionada.id) : null;
         const parcelaMesAtual = res.data.find(p => p.mesesReferencia && p.mesesReferencia.split(', ').includes(MES_ATUAL));
-        setParcelaSelecionada(manterSelecionada || parcelaMesAtual || res.data[0]);
+        setParcelaSelecionada(selecionarParcela({ parcelas: res.data, atual: manterSelecionada || parcelaMesAtual, setor: getSetorAtivo() }));
       } else {
         setParcelaSelecionada(null);
       }
@@ -70,14 +77,22 @@ export default function LancarDespesa() {
     } catch (error) { console.error("Erro ao carregar despesas:", error); }
   };
 
+  const carregarAcoes = async () => {
+    try {
+      const data = await listarAcoesGerr(getSetorAtivo());
+      setAcoesGerr(data);
+    } catch (error) { console.error("Erro ao carregar ações:", error); setAcoesGerr([]); }
+  };
+
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     carregarParcelas();
     carregarInstrutores();
+    carregarAcoes();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { const h = () => carregarParcelas(); window.addEventListener('setor-changed', h); return () => window.removeEventListener('setor-changed', h); }, []);
+  useEffect(() => { const h = () => { carregarParcelas(); carregarAcoes(); }; window.addEventListener('setor-changed', h); return () => window.removeEventListener('setor-changed', h); }, []);
   useEffect(() => {
     if (parcelaSelecionada) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -93,6 +108,8 @@ export default function LancarDespesa() {
     setInstrutorId('');
     setMesCompetencia('');
     setNomeEmpresa('');
+    setTipoDocumento('');
+    setAcaoGerrId('');
     setObservacao('');
     setIsLendoNota(false);
     setModalNota(null);
@@ -107,6 +124,14 @@ export default function LancarDespesa() {
   const fecharForm = () => { setFormAberto(false); resetarForm(); };
 
   // --- OCR ---
+  const abortLeituraNotaRef = useRef(null);
+
+  const cancelarLeituraNota = () => {
+    abortLeituraNotaRef.current?.abort();
+    abortLeituraNotaRef.current = null;
+    setIsLendoNota(false);
+  };
+
   const handleArquivoNota = async (e) => {
     const arquivo = e.target.files[0];
     if (!arquivo) return;
@@ -117,11 +142,16 @@ export default function LancarDespesa() {
 
     setArquivoNotaFiscal(arquivo);
     setIsLendoNota(true);
+    const controller = new AbortController();
+    abortLeituraNotaRef.current = controller;
     const formData = new FormData();
     formData.append("arquivo", arquivo);
 
     try {
-      const response = await api.post("/anexos/ler-nota", formData, { headers: { "Content-Type": "multipart/form-data" } });
+      const response = await api.post("/anexos/ler-nota", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+        signal: controller.signal,
+      });
       const extraido = response.data;
       let dataFormatada = extraido.data;
       if (dataFormatada && dataFormatada.includes("/")) {
@@ -142,12 +172,15 @@ export default function LancarDespesa() {
         setNomeEmpresa(extraido.emitente.trim());
       }
 
-      // Auto-preencher mês de competência
-      if (dataFormatada) {
-        const mesNum = parseInt(dataFormatada.split('-')[1], 10);
-        if (!isNaN(mesNum)) setMesCompetencia(String(mesNum).padStart(2, "0"));
-      }
+      // Auto-preencher mês de competência (mês do trabalho, não o da emissão)
+      const sugestaoCompetencia = mesCompetenciaSugerido(dataFormatada);
+      if (sugestaoCompetencia) setMesCompetencia(sugestaoCompetencia);
+
+      // Auto-detectar o tipo de documento (NF-e, NFS-e, Folha, Guias...); NF-e é o padrão
+      setTipoDocumento(extraido.tipoDocumento || 'NOTA_FISCAL_ELETRONICA');
     } catch (error) {
+      if (error?.code === 'ERR_CANCELED' || error?.name === 'CanceledError') return;
+
       console.error("Erro na leitura OCR:", error);
 
       const status = error.response?.status;
@@ -176,6 +209,19 @@ export default function LancarDespesa() {
   };
 
   const removerExtra = (i) => { const n = [...anexosExtras]; n.splice(i, 1); setAnexosExtras(n); };
+
+  const verNotaDaDespesa = async (d) => {
+    try {
+      const res = await api.get(`/despesas/${d.id}/anexos`);
+      const nota = (res.data || []).find(a => a.tipo === 'NOTA_FISCAL');
+      if (!nota || !nota.urlS3) return alert("Esta despesa não possui nota fiscal anexada.");
+      const apiBase = api.defaults.baseURL || 'http://localhost:8080';
+      window.open(`${apiBase}/arquivos/${encodeURIComponent(nota.urlS3)}`, '_blank');
+    } catch (error) {
+      console.error("Erro ao abrir a nota:", error);
+      alert("Não foi possível abrir a nota fiscal.");
+    }
+  };
 
   // --- MESSES DISPONÍVEIS ---
   const mesesDisponiveis = () => {
@@ -218,6 +264,8 @@ export default function LancarDespesa() {
     if (modo === 'AVULSO') formData.append("nomeEmpresa", nomeEmpresa.trim());
     if (observacao.trim()) formData.append("observacao", observacao.trim());
     if (dadosNota.documento) formData.append("documentoFavorecido", dadosNota.documento);
+    if (tipoDocumento) formData.append("tipoDocumento", tipoDocumento);
+    if (acaoGerrId) formData.append("acaoGerrId", acaoGerrId);
     formData.append("notaFiscal", arquivoNotaFiscal);
     if (anexosExtras.length > 0) anexosExtras.forEach(a => formData.append("anexosExtras", a));
 
@@ -251,12 +299,12 @@ export default function LancarDespesa() {
   const renderStatusReal = (status) => {
     const verificada = status && status !== 'AGUARDANDO_DOCUMENTOS';
     return verificada ? (
-      <span className="inline-flex items-center gap-1.5 bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wide">
-        <CheckCircle2 className="w-3 h-3" /> Verificada
+      <span title="Verificada" className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-emerald-100 text-emerald-600">
+        <CheckCircle2 className="w-4 h-4" />
       </span>
     ) : (
-      <span className="inline-flex items-center gap-1.5 bg-amber-100 text-amber-800 px-2.5 py-1 rounded-full text-[11px] font-bold uppercase tracking-wide">
-        Não verificada
+      <span title="Não verificada" className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-amber-100 text-amber-600">
+        <Clock className="w-4 h-4" />
       </span>
     );
   };
@@ -274,7 +322,11 @@ export default function LancarDespesa() {
             <select
               className="bg-brand-50 border border-brand-200 text-stone-800 text-lg rounded-xl focus:ring-brand-500 focus:border-brand-500 block p-2.5 font-semibold outline-none cursor-pointer min-w-[200px]"
               value={parcelaSelecionada?.id || ''}
-              onChange={(e) => setParcelaSelecionada(parcelas.find(x => x.id === e.target.value))}
+              onChange={(e) => {
+                const p = parcelas.find(x => x.id === e.target.value);
+                setParcelaSelecionada(p);
+                salvarParcelaLembrada(p?.id);
+              }}
             >
               {parcelas.map(p => (
                 <option key={p.id} value={p.id}>
@@ -340,6 +392,7 @@ export default function LancarDespesa() {
                     <option value="">Selecione o mês...</option>
                     {mesesDisponiveis().map(m => (<option key={m} value={String(TODOS_OS_MESES.indexOf(m) + 1).padStart(2, "0")}>{m}</option>))}
                   </select>
+                  {mesCompetencia && <p className="text-[10px] text-stone-400 mt-1">Sugerido pela data da nota (mês do trabalho). Ajuste se necessário.</p>}
                 </div>
               </div>
             ) : (
@@ -355,6 +408,7 @@ export default function LancarDespesa() {
                     <option value="">Selecione o mês...</option>
                     {mesesDisponiveis().map(m => (<option key={m} value={String(TODOS_OS_MESES.indexOf(m) + 1).padStart(2, "0")}>{m}</option>))}
                   </select>
+                  {mesCompetencia && <p className="text-[10px] text-stone-400 mt-1">Sugerido pela data da nota (mês do trabalho). Ajuste se necessário.</p>}
                 </div>
               </div>
             )}
@@ -371,6 +425,13 @@ export default function LancarDespesa() {
                     <p className="text-xs text-stone-500 mt-1.5 leading-relaxed max-w-[220px]">
                       Não conseguimos extrair os dados automaticamente, aguarde nosso modelo extrair as informações.
                     </p>
+                    <button
+                      type="button"
+                      onClick={cancelarLeituraNota}
+                      className="mt-4 px-4 py-2 bg-white border border-cream-300 hover:bg-cream-100 text-stone-600 text-xs font-semibold rounded-xl transition-colors cursor-pointer"
+                    >
+                      Cancelar e preencher manualmente
+                    </button>
                   </div>
                 ) : arquivoNotaFiscal ? (
                   <div className="relative border border-emerald-200 bg-emerald-50 p-5 rounded-2xl text-center flex flex-col items-center justify-center">
@@ -457,22 +518,29 @@ export default function LancarDespesa() {
                     <label className="block text-[11px] font-medium text-stone-600 mb-1">Descrição</label>
                     <input type="text" className="w-full px-3 py-2 border border-cream-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500" value={dadosNota.descricao} onChange={(e) => setDadosNota({ ...dadosNota, descricao: e.target.value })} />
                   </div>
+                  <div>
+                    <label className="block text-[11px] font-medium text-stone-600 mb-1">Tipo de Documento (GERR)</label>
+                    <select className="w-full px-3 py-2 border border-cream-200 rounded-xl text-sm outline-none bg-white focus:ring-2 focus:ring-brand-500/40 focus:border-brand-500" value={tipoDocumento} onChange={(e) => setTipoDocumento(e.target.value)}>
+                      <option value="">Selecione...</option>
+                      {TIPOS_DOCUMENTO_GERR.map(t => <option key={t.valor} value={t.valor}>{t.rotuloCompleto}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium text-stone-600 mb-1">Ação (GERR)</label>
+                    <SelectResumido
+                      value={acaoGerrId}
+                      opcoes={acoesGerr.map(a => ({ valor: a.id, rotulo: a.nome }))}
+                      placeholder={acoesGerr.length === 0 ? 'Nenhuma ação cadastrada para este setor' : 'Selecione...'}
+                      onChange={setAcaoGerrId}
+                      disabled={acoesGerr.length === 0}
+                      widthClass="w-full"
+                    />
+                  </div>
                 </div>
               </div>
             )}
 
-            {/* OBSERVAÇÃO */}
-            <div>
-              <label className="block text-xs font-bold text-stone-700 mb-1.5 uppercase">Observações (Opcional)</label>
-              <textarea
-                rows={2}
-                placeholder={modo === 'AVULSO' ? "Ex: Nota referente a material de escritório..." : "Ex: Referente a evento em julho..."}
-                className="w-full px-3 py-2 border border-cream-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-500/40 resize-none placeholder:text-stone-400"
-                value={observacao}
-                onChange={(e) => setObservacao(e.target.value)}
-              />
-            </div>
-
+            {/* SUBMIT */}
             <button type="submit" disabled={isSaving || isLendoNota || !arquivoNotaFiscal} className="w-full bg-brand-700 hover:bg-brand-800 text-white text-sm font-semibold py-3 rounded-xl transition-colors flex justify-center items-center gap-2 disabled:opacity-70">
               {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
               {modo === 'INSTRUTOR' ? 'Lançar Despesa para Instrutor' : 'Registrar Lançamento Avulso'}
@@ -507,12 +575,15 @@ export default function LancarDespesa() {
                     <tr className={`${index % 2 === 0 ? 'bg-white' : 'bg-cream-50/50'} border-b border-cream-100`}>
                       <td className="px-5 py-3 text-sm">
                         <span className="font-medium text-stone-700">{d.nomeEmpresa || d.emitente || '—'}</span>
-                        {d.observacao && <span className="block text-xs text-stone-400 mt-0.5">Obs: {d.observacao}</span>}
+                        {(d.descricao || d.observacao) && <span className="block text-xs text-stone-400 mt-0.5 truncate max-w-[220px]" title={d.descricao || d.observacao}>{d.descricao || d.observacao}</span>}
                       </td>
                       <td className="px-5 py-3 text-sm text-stone-500">{d.dataCompetencia}</td>
                       <td className="px-5 py-3 text-sm font-semibold text-stone-900">R$ {formatarMoeda(d.valor)}</td>
                       <td className="px-5 py-3">{renderStatusReal(d.status)}</td>
                       <td className="px-5 py-3 text-right space-x-1">
+                        <button onClick={() => verNotaDaDespesa(d)} className="text-stone-400 hover:text-brand-700 transition-colors p-1.5 rounded-md" title="Visualizar nota fiscal">
+                          <Eye className="w-4 h-4" />
+                        </button>
                         <button onClick={() => setDespesaEmEdicao(despesaEmEdicao?.id === d.id ? null : d)} className="text-stone-400 hover:text-brand-700 transition-colors p-1.5 rounded-md" title="Editar">
                           <Edit2 className="w-4 h-4" />
                         </button>
@@ -524,6 +595,7 @@ export default function LancarDespesa() {
                     {despesaEmEdicao?.id === d.id && (
                       <EditarDespesaInline
                         despesa={d}
+                        categoria={parcelaSelecionada?.categoria}
                         mesesDisponiveis={parcelaSelecionada?.mesesReferencia ? parcelaSelecionada.mesesReferencia.split(', ').filter(m => TODOS_OS_MESES.includes(m)) : []}
                         onCancelar={() => setDespesaEmEdicao(null)}
                         onSalvo={async () => { setDespesaEmEdicao(null); await carregarDespesas(parcelaSelecionada.id); await carregarParcelas(); }}

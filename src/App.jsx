@@ -9,6 +9,7 @@ import PainelGestor from './pages/PainelGestor';
 import LancarDespesa from './pages/LancarDespesa';
 import EmprestimosEventos from './pages/EmprestimosEventos';
 import Ginasios from './pages/Ginasios';
+import AcoesGerr from './pages/AcoesGerr';
 import LayoutGestor from './components/LayoutGestor';
 import RequireAuth from './components/RequireAuth';
 
@@ -27,6 +28,7 @@ export default function App() {
                     <Route path="/lancar-despesa" element={<LancarDespesa />} />
                     <Route path="/emprestimos-eventos" element={<EmprestimosEventos />} />
                     <Route path="/ginasios" element={<Ginasios />} />
+                    <Route path="/acoes-gerr" element={<AcoesGerr />} />
                     <Route path="/painel" element={<PainelGestor />} />
                 </Route>
 

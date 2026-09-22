@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, LogOut, Wallet, Activity, Music, Send, ArrowLeftRight, Bell, Dumbbell, Menu, X, Landmark } from 'lucide-react';
+import { LayoutDashboard, Users, LogOut, Wallet, Activity, Music, Send, ArrowLeftRight, Bell, Dumbbell, Menu, X, Landmark, Settings } from 'lucide-react';
 import { SETORES, getSetorAtivo, setSetorAtivo } from '../services/setor';
 import { api } from '../services/api';
 
@@ -82,6 +82,8 @@ export default function LayoutGestor() {
     setSetorAtivo(valor);
   };
 
+  const ehSuperAdmin = localStorage.getItem('usuarioRole') === 'SUPER_ADMIN';
+
   const menuItems = [
     { path: '/gestor', label: 'Visão Geral', icon: LayoutDashboard },
     { path: '/prestacoes', label: 'Controle de Parcelas', icon: Wallet },
@@ -90,6 +92,7 @@ export default function LayoutGestor() {
     { path: '/emprestimos-eventos', label: 'Empréstimos e Eventos', icon: ArrowLeftRight },
     { path: '/ginasios', label: 'Controle de Ginásios', icon: Dumbbell },
     { path: '/painel', label: 'Equipe de Instrutores', icon: Users },
+    ...(ehSuperAdmin ? [{ path: '/acoes-gerr', label: 'Ações GERR', icon: Settings }] : []),
   ];
 
   const IconeSetor = setorAtivo === 'ESPORTE' ? Activity : Music;
