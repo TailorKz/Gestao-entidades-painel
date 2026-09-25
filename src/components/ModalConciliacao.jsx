@@ -5,8 +5,19 @@ import { UploadCloud, Loader2, Check, X, FileText, AlertTriangle, Link2, Landmar
 const heading = { fontFamily: "'Varela Round', sans-serif" };
 
 const fmtValor = (v) => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+const fmtData = (iso) => {
+  if (!iso) return '—';
+  const [y, m, d] = iso.split('T')[0].split('-');
+  return `${d}/${m}/${y}`;
+};
+const dataNota = (d) => d.dataEmissao
+  ? fmtData(d.dataEmissao)
+  : (d.dataCompetencia ? `comp. ${String(d.dataCompetencia).slice(0, 7).replace('-', '/')}` : 'sem data');
 
-export default function ModalConciliacao({ parcela, despesas, onFechar, onProcessado }) {
+export default function ModalConciliacao({ parcela, despesas, candidatas, categoria, ano, mes, onFechar, onProcessado }) {
+  // Modo legado (por parcela) é usado em PrestacaoGestor; o modo novo (por mês) em ComprovantesGestor
+  const legado = Boolean(parcela);
+
   const [arquivos, setArquivos] = useState([]);
   const [arrastando, setArrastando] = useState(false);
   const [lendo, setLendo] = useState(false);
@@ -19,22 +30,34 @@ export default function ModalConciliacao({ parcela, despesas, onFechar, onProces
   const [vinculandoId, setVinculandoId] = useState(null);
   const inputRef = useRef(null);
 
-  // Despesas que ainda aceitam comprovante (para o dropdown)
-  const candidatas = despesas.filter(d => !d.temComprovante);
+  // Despesas que ainda aceitam comprovante (dropdown)
+  const candidatasOrigem = legado
+    ? (despesas || []).filter(d => !d.temComprovante)
+    : (candidatas || []);
 
-  const carregarPendentes = useCallback(async () => {
+  const despesasPorParcela = candidatasOrigem.reduce((acc, d) => {
+    const n = d.numeroParcela ?? 0;
+    (acc[n] ||= []).push(d);
+    return acc;
+  }, {});
+  const parcelasCandidatas = Object.keys(despesasPorParcela)
+    .sort((a, b) => Number(a) - Number(b))
+    .map((n) => ({ numero: n, despesas: despesasPorParcela[n] }));
+
+  const carregarPendentesLegado = useCallback(async () => {
+    if (!legado) return;
     try {
       const res = await api.get(`/despesas/${parcela.id}/comprovantes-pendentes`);
       setPendentes(res.data);
     } catch {
       setPendentes([]);
     }
-  }, [parcela.id]);
+  }, [legado, parcela]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    carregarPendentes();
-  }, [carregarPendentes]);
+    carregarPendentesLegado();
+  }, [carregarPendentesLegado]);
 
   const adicionarArquivos = (lista) => {
     const novos = Array.from(lista).filter(f => {
@@ -50,12 +73,24 @@ export default function ModalConciliacao({ parcela, despesas, onFechar, onProces
     if (arquivos.length === 0) return alert("Selecione os comprovantes (PDFs ou o .zip).");
     setLendo(true);
     setProcessou(false);
+    setVincularPara({});
+
     const formData = new FormData();
-    formData.append("parcelaId", parcela.id);
-    arquivos.forEach(a => formData.append("arquivos", a));
+    let url;
+    if (legado) {
+      formData.append("parcelaId", parcela.id);
+      arquivos.forEach(a => formData.append("arquivos", a));
+      url = "/despesas/conciliacao/processar-lote";
+    } else {
+      formData.append("categoria", categoria);
+      formData.append("ano", String(ano));
+      formData.append("mes", String(mes));
+      arquivos.forEach(a => formData.append("arquivos", a));
+      url = "/despesas/conciliacao/importar-mes";
+    }
 
     try {
-      const res = await api.post("/despesas/conciliacao/processar-lote", formData, {
+      const res = await api.post(url, formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
       setVinculados(res.data.vinculados || []);
@@ -63,7 +98,8 @@ export default function ModalConciliacao({ parcela, despesas, onFechar, onProces
       setErros(res.data.erros || []);
       setProcessou(true);
       setArquivos([]);
-      await Promise.all([carregarPendentes(), onProcessado()]);
+      setPendentes(res.data.pendentes || []);
+      await onProcessado();
     } catch (error) {
       alert(obterMensagemErro(error, "Erro ao processar os comprovantes."));
     } finally {
@@ -76,11 +112,10 @@ export default function ModalConciliacao({ parcela, despesas, onFechar, onProces
     if (!despesaId) return;
     setVinculandoId(comprovanteId);
     try {
-      const res = await api.post("/despesas/conciliacao/vincular", {
-        parcelaId: parcela.id,
-        comprovanteId,
-        despesaId,
-      });
+      const body = legado
+        ? { parcelaId: parcela.id, comprovanteId, despesaId }
+        : { comprovanteId, despesaId, categoria };
+      const res = await api.post("/despesas/conciliacao/vincular", body);
       const novo = res.data;
       setVinculados(prev => [...prev, novo]);
       setPendentes(prev => prev.filter(p => p.id !== comprovanteId));
@@ -93,6 +128,16 @@ export default function ModalConciliacao({ parcela, despesas, onFechar, onProces
     }
   };
 
+  const titulo = legado
+    ? "Conciliar Comprovantes BB"
+    : `Importar Comprovantes BB — ${String(mes).padStart(2, '0')}/${ano}`;
+  const subtitulo = legado
+    ? "Anexe os comprovantes para vincular às despesas da parcela."
+    : `Comprovantes deste mês serão cruzados com as despesas do ${categoria === 'ESPORTE' ? 'esporte' : 'cultura'}.`;
+  const rotuloBotao = legado
+    ? (lendo ? "Lendo comprovantes e cruzando com as despesas..." : `Processar ${arquivos.length} comprovante(s)`)
+    : (lendo ? "Lendo comprovantes e cruzando com as despesas do setor..." : `Processar ${arquivos.length} comprovante(s) para ${String(mes).padStart(2, '0')}/${ano}`);
+
   return (
     <div className="fixed inset-0 bg-stone-900/50 flex items-center justify-center p-4 z-50 backdrop-blur-sm">
       <div className="bg-white rounded-2xl border border-cream-200 shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
@@ -102,8 +147,8 @@ export default function ModalConciliacao({ parcela, despesas, onFechar, onProces
               <Landmark className="w-4 h-4 text-brand-700" />
             </div>
             <div>
-              <h3 style={heading} className="font-semibold text-stone-800 text-sm">Conciliar Comprovantes BB</h3>
-              <p className="text-[11px] text-stone-500">Anexe os comprovantes para vincular às despesas da parcela.</p>
+              <h3 style={heading} className="font-semibold text-stone-800 text-sm">{titulo}</h3>
+              <p className="text-[11px] text-stone-500">{subtitulo}</p>
             </div>
           </div>
           <button onClick={onFechar} className="text-stone-400 hover:text-stone-700 transition-colors">
@@ -123,7 +168,11 @@ export default function ModalConciliacao({ parcela, despesas, onFechar, onProces
             <input ref={inputRef} type="file" multiple accept=".pdf,.zip" className="hidden" onChange={(e) => { adicionarArquivos(e.target.files); e.target.value = ''; }} />
             <UploadCloud className="w-8 h-8 text-brand-600 mx-auto mb-2" strokeWidth={1.5} />
             <p className="text-sm text-stone-600 font-medium">Arraste os PDFs aqui <span className="text-stone-400">ou o</span> .zip</p>
-            <p className="text-[11px] text-stone-400 mt-1">Você pode soltar os comprovantes individuais ou o arquivo ZIP baixado no Banco do Brasil.</p>
+            <p className="text-[11px] text-stone-400 mt-1">
+              {legado
+                ? "Você pode soltar os comprovantes individuais ou o arquivo ZIP baixado no Banco do Brasil."
+                : "A data do débito (DÉBITO EM / data da transferência) de cada comprovante é lida automaticamente."}
+            </p>
           </div>
 
           {arquivos.length > 0 && (
@@ -145,7 +194,7 @@ export default function ModalConciliacao({ parcela, despesas, onFechar, onProces
             className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-brand-700 text-white text-sm font-semibold hover:bg-brand-800 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {lendo ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />}
-            {lendo ? "Lendo comprovantes e cruzando com as despesas..." : `Processar ${arquivos.length} comprovante(s)`}
+            {rotuloBotao}
           </button>
 
           {duplicados > 0 && processou && (
@@ -174,7 +223,9 @@ export default function ModalConciliacao({ parcela, despesas, onFechar, onProces
                   <div key={c.id} className="px-4 py-3 flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <p className="text-sm font-semibold text-emerald-900">{c.favorecido || c.nomeArquivo}</p>
-                      <p className="text-xs text-emerald-700">→ Vinculado à despesa: {c.despesaDescricao || '—'} · {c.dataPagamento || ''}</p>
+                      <p className="text-xs text-emerald-700">→ Vinculado à despesa: {c.despesaDescricao || '—'}
+                        {c.numeroParcela ? <span> · Parcela 0{c.numeroParcela}</span> : null} · {fmtData(c.dataPagamento)}
+                      </p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <span className="text-sm font-bold text-emerald-800">{fmtValor(c.valor)}</span>
@@ -200,7 +251,7 @@ export default function ModalConciliacao({ parcela, despesas, onFechar, onProces
                     <div className="flex items-center justify-between gap-3 mb-2">
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-stone-800">{c.favorecido || c.nomeArquivo}</p>
-                        <p className="text-xs text-stone-500">{c.documentoFavorecido || 'sem CPF/CNPJ'} · {c.dataPagamento || ''} · {c.nomeArquivo}</p>
+                        <p className="text-xs text-stone-500">{c.documentoFavorecido || 'sem CPF/CNPJ'} · Débito em {fmtData(c.dataPagamento)} · {c.nomeArquivo}</p>
                       </div>
                       <span className="text-sm font-bold text-stone-900 shrink-0">{fmtValor(c.valor)}</span>
                     </div>
@@ -210,11 +261,15 @@ export default function ModalConciliacao({ parcela, despesas, onFechar, onProces
                         value={vincularPara[c.id] || ''}
                         onChange={e => setVincularPara(prev => ({ ...prev, [c.id]: e.target.value }))}
                       >
-                        <option value="">Selecione a despesa...</option>
-                        {candidatas.map(d => (
-                          <option key={d.id} value={d.id}>
-                            {d.nomeEmpresa || d.emitente || 'Despesa'} · {fmtValor(d.valor)}
-                          </option>
+                        <option value="">Selecione a parcela e a despesa...</option>
+                        {parcelasCandidatas.map(({ numero, despesas }) => (
+                          <optgroup key={numero} label={`Parcela 0${numero} — ${despesas.length} despesa(s)`}>
+                            {despesas.map(d => (
+                              <option key={d.id} value={d.id}>
+                                {dataNota(d)} · {fmtValor(d.valor)} · {d.nomeEmpresa || d.emitente || 'Despesa'}
+                              </option>
+                            ))}
+                          </optgroup>
                         ))}
                       </select>
                       <button
@@ -226,8 +281,10 @@ export default function ModalConciliacao({ parcela, despesas, onFechar, onProces
                         Vincular
                       </button>
                     </div>
-                    {candidatas.length === 0 && (
-                      <p className="text-[11px] text-amber-700 mt-2">Nenhuma despesa sem comprovante disponível nesta parcela.</p>
+                    {candidatasOrigem.length === 0 && (
+                      <p className="text-[11px] text-amber-700 mt-2">
+                        {legado ? "Nenhuma despesa sem comprovante disponível nesta parcela." : "Nenhuma despesa sem comprovante disponível no setor."}
+                      </p>
                     )}
                   </div>
                 ))}
@@ -238,7 +295,7 @@ export default function ModalConciliacao({ parcela, despesas, onFechar, onProces
           {!lendo && !processou && arquivos.length === 0 && vinculados.length === 0 && pendentes.length === 0 && (
             <div className="flex items-center justify-center gap-2 text-stone-400 text-sm py-4">
               <AlertTriangle className="w-4 h-4" />
-              Nenhum comprovante processado ainda nesta sessão.
+              Nenhum comprovante importado ainda nesta sessão.
             </div>
           )}
         </div>
