@@ -120,6 +120,21 @@ export default function LancarDespesa() {
     setModo(novoModo);
   };
 
+  // Padrão: "Lançamento Avulso" já abre com a ação "Despesas Indiretas" marcada.
+  useEffect(() => {
+    if (modo !== 'AVULSO' || !formAberto || acaoGerrId) return;
+    const padrao = acoesGerr.find(a => (a.nome || '').trim().toLowerCase() === 'despesas indiretas');
+    if (padrao) setAcaoGerrId(padrao.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modo, acoesGerr, formAberto]);
+
+  // Quando o instrutor tem somente uma ação fixa vinculada, marca ela automaticamente.
+  const aoSelecionarInstrutor = (id) => {
+    setInstrutorId(id);
+    const fixas = acoesGerr.filter(a => (a.instrutores || []).includes(id));
+    if (fixas.length === 1) setAcaoGerrId(fixas[0].id);
+  };
+
   const abrirForm = () => { resetarForm(); setFormAberto(true); };
   const fecharForm = () => { setFormAberto(false); resetarForm(); };
 
@@ -381,7 +396,7 @@ export default function LancarDespesa() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-stone-700 mb-1.5 uppercase">Instrutor Responsável</label>
-                  <select required className="w-full px-3 py-2 border border-cream-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-500/40 bg-white font-medium" value={instrutorId} onChange={(e) => setInstrutorId(e.target.value)}>
+                  <select required className="w-full px-3 py-2 border border-cream-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-500/40 bg-white font-medium" value={instrutorId} onChange={(e) => aoSelecionarInstrutor(e.target.value)}>
                     <option value="">Selecione um instrutor...</option>
                     {instrutores.map(i => (<option key={i.id} value={i.id}>{i.nome}</option>))}
                   </select>

@@ -15,7 +15,13 @@ export default function SelectResumido({ value, opcoes, placeholder = "Selecione
       setAberto(false);
       setPosicao(null);
     };
-    const fecharEvento = () => { setAberto(false); setPosicao(null); };
+    const fecharEvento = (e) => {
+      // Rolar dentro do próprio menu (wheel ou arrastar a barra) não pode fechar a lista.
+      if (menuRef.current && menuRef.current.contains(e.target)) return;
+      if (ref.current && ref.current.contains(e.target)) return;
+      setAberto(false);
+      setPosicao(null);
+    };
     document.addEventListener('mousedown', fechar);
     window.addEventListener('scroll', fecharEvento, true);
     window.addEventListener('resize', fecharEvento);
