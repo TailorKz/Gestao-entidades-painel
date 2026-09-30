@@ -287,7 +287,6 @@ export default function LancarDespesa() {
     setIsSaving(true);
     try {
       await api.post("/despesas/admin-lancar", formData, { headers: { "Content-Type": "multipart/form-data" } });
-      alert(modo === 'INSTRUTOR' ? "Despesa lançada para o instrutor com sucesso!" : "Lançamento avulso registrado com sucesso!");
       fecharForm();
       await Promise.all([carregarDespesas(parcelaSelecionada.id), carregarParcelas()]);
     } catch (error) {

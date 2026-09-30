@@ -112,7 +112,7 @@ export default function Login() {
               <img src="/logo-indaci.png" alt="INDACI" className="max-h-14 w-auto max-w-[4.5rem] object-contain" />
             </div>
             <p className="text-xs text-brand-200 font-medium max-w-[11rem] sm:max-w-xs hidden lg:block">
-              Instituto Indaci · Iporá – GO
+              Instituto Desportivo Assistencial e Cultural de Iporã do Oeste · INDACI
             </p>
             <p className="text-sm text-brand-100 font-semibold lg:hidden">
               Portal de Prestações de Contas
@@ -125,12 +125,12 @@ export default function Login() {
             <Sparkles className="w-3.5 h-3.5" /> Plataforma de Gestão de Entidades
           </span>
 
-          <h1 style={heading} className="mt-6 text-3xl leading-tight sm:text-4xl">
+          <h1 style={heading} className="mt-6 text-3xl leading-tight sm:text-xl">
             Automação de Serviços e Prestação de Contas
           </h1>
           <p className="mt-4 text-brand-100/90 text-sm leading-relaxed">
             O portal reúne o lançamento de despesas, a leitura automática de comprovantes
-            e a preparação das prestações de contas em um só lugar — com menos digitação,
+            e a preparação das prestações de contas em um só lugar, com menos digitação,
             mais agilidade e mais precisão.
           </p>
 
@@ -191,12 +191,9 @@ export default function Login() {
 
         {/* Título no mobile (preenche o espaço entre o painel e o card) */}
         <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10 text-center mb-8 lg:hidden">
-          <h2 style={heading} className="text-2xl text-brand-900 leading-snug">
-            Automação de Serviços e Prestação de Contas
-          </h2>
-          <p className="text-sm text-stone-500 mt-2">
-            Despesas, comprovantes e prestações de contas em um só lugar.
-          </p>
+          <h2 className="text-xl text-brand-900">Automação de Serviços e Prestação de Contas</h2>
+
+          
         </div>
 
         <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10 lg:mt-0">
