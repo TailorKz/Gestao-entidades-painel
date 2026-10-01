@@ -71,12 +71,30 @@ const CorBanco = (conta) => {
   return cor;
 };
 
-function DonutSaidas({ grupos }) {
+function montarListaGrupos(configurados, buckets) {
+  const porId = new Map();
+  for (const b of buckets || []) {
+    if (b.grupo) porId.set(b.grupo.id, b);
+  }
+  const lista = [];
+  for (const g of configurados || []) {
+    const b = porId.get(g.id);
+    lista.push(b || { grupo: g, entradas: 0, saidas: 0, saldo: 0, quantidade: 0, porMes: [] });
+    porId.delete(g.id);
+  }
+  for (const restante of porId.values()) lista.push(restante);
+  const semGrupo = (buckets || []).find((b) => !b.grupo);
+  if (semGrupo) lista.push(semGrupo);
+  return lista;
+}
+
+function DonutDistribuicao({ grupos, tipo }) {
+  const rotulo = tipo === 'entradas' ? 'Entradas' : 'Saídas';
   const itens = (grupos || [])
     .map((g) => ({
       nome: g.grupo?.nome || 'Não classificado',
       cor: g.grupo?.cor || '#78716C',
-      valor: Number(g.saidas || 0),
+      valor: Number(g[tipo] || 0),
     }))
     .filter((i) => i.valor > 0);
 
@@ -84,7 +102,7 @@ function DonutSaidas({ grupos }) {
   if (total <= 0) {
     return (
       <div className="flex items-center justify-center h-40 text-sm text-stone-400">
-        Nenhuma saída registrada no ano.
+        Nenhuma {rotulo.toLowerCase()} registrada no ano.
       </div>
     );
   }
@@ -122,7 +140,7 @@ function DonutSaidas({ grupos }) {
           ))}
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-[10px] font-semibold text-stone-400 uppercase">Saídas</span>
+          <span className="text-[10px] font-semibold text-stone-400 uppercase">{rotulo}</span>
           <span className="text-sm font-bold text-stone-800">R$ {formatarMoeda(total)}</span>
         </div>
       </div>
@@ -140,13 +158,13 @@ function DonutSaidas({ grupos }) {
   );
 }
 
-function BarrasMensais({ grupos }) {
+function BarrasPorMes({ grupos, tipo }) {
   const dados = Array.from({ length: 12 }, (_, m) => {
     const porGrupo = (grupos || [])
       .map((g) => ({
         nome: g.grupo?.nome || 'Não classificado',
         cor: g.grupo?.cor || '#78716C',
-        valor: Number(g.porMes?.find((p) => p.mes === m + 1)?.saidas || 0),
+        valor: Number(g.porMes?.find((p) => p.mes === m + 1)?.[tipo] || 0),
       }))
       .filter((i) => i.valor > 0);
     return {
@@ -162,12 +180,12 @@ function BarrasMensais({ grupos }) {
     <div>
       <div className="flex items-end gap-1.5 h-48">
         {dados.map((d) => (
-          <div key={d.mes} className="flex-1 flex flex-col items-center gap-1 h-full justify-end" title={`${d.mes}/${ANO_ATUAL}: R$ ${formatarMoeda(d.total)}`}>
-            <div className="w-full flex flex-col justify-end rounded-t-sm overflow-hidden" style={{ height: `${Math.max(d.total > 0 ? 4 : 0, (d.total / maxMes) * 100)}%` }}>
+          <div key={d.mes} className="flex-1 flex flex-col items-center gap-1 h-full justify-end" title={`${MESES_CURTOS[d.mes - 1]}: R$ ${formatarMoeda(d.total)}`}>
+            <div className="w-full rounded-t-sm overflow-hidden" style={{ height: `${Math.max(d.total > 0 ? 4 : 0, (d.total / maxMes) * 100)}%` }}>
               {d.porGrupo.map((g, idx) => (
                 <div
                   key={`${g.nome}-${idx}`}
-                  style={{ backgroundColor: g.cor }}
+                  style={{ backgroundColor: g.cor, height: `${(g.valor / Math.max(0.0001, d.total)) * 100}%` }}
                   title={`${g.nome}: R$ ${formatarMoeda(g.valor)}`}
                   className="w-full [&+div]:border-t border-white/40"
                 />
@@ -207,6 +225,99 @@ function LegendaGrupos({ grupos }) {
           Não classificado
         </span>
       )}
+    </div>
+  );
+}
+
+function TabelaResumoGrupos({ grupos, tipo }) {
+  const rotulo = tipo === 'entradas' ? 'Entradas' : 'Saídas';
+  const totalDirecao = (grupos || []).reduce((acc, g) => acc + Number(g[tipo] || 0), 0);
+
+  return (
+    <div className="mt-6 pt-5 border-t border-cream-200">
+      <p className="text-xs font-bold uppercase tracking-wide text-stone-500 mb-3">Resumo por grupo</p>
+      <div className="overflow-x-auto">
+        <table className="w-full text-left">
+          <thead>
+            <tr className="border-b border-cream-200">
+              <th className="px-3 py-2.5 text-xs text-stone-500 font-semibold">Grupo</th>
+              <th className="px-3 py-2.5 text-xs text-stone-500 font-semibold text-right">Entradas</th>
+              <th className="px-3 py-2.5 text-xs text-stone-500 font-semibold text-right">Saídas</th>
+              <th className="px-3 py-2.5 text-xs text-stone-500 font-semibold text-right">Saldo</th>
+              <th className="px-3 py-2.5 text-xs text-stone-500 font-semibold text-center">Lanç.</th>
+              <th className="px-3 py-2.5 text-xs text-stone-500 font-semibold text-right">% {rotulo}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(grupos || []).map((g, idx) => {
+              const nome = g.grupo?.nome || 'Não classificado';
+              const cor = g.grupo?.cor || '#78716C';
+              const v = Number(g[tipo] || 0);
+              const pct = totalDirecao > 0 ? ((v / totalDirecao) * 100).toFixed(1).replace('.', ',') : '0,0';
+              return (
+                <tr key={`${nome}-${idx}`} className="border-b border-cream-100 hover:bg-cream-50">
+                  <td className="px-3 py-2.5 text-sm">
+                    <span className="inline-flex items-center gap-2">
+                      <span className="inline-block w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: cor }} />
+                      <span className="font-semibold text-stone-700">{nome}</span>
+                    </span>
+                  </td>
+                  <td className="px-3 py-2.5 text-sm font-bold text-emerald-600 text-right">R$ {formatarMoeda(g.entradas)}</td>
+                  <td className="px-3 py-2.5 text-sm font-bold text-red-600 text-right">R$ {formatarMoeda(g.saidas)}</td>
+                  <td className={`px-3 py-2.5 text-sm font-bold text-right ${Number(g.saldo || 0) >= 0 ? 'text-stone-800' : 'text-red-600'}`}>
+                    R$ {formatarMoeda(g.saldo)}
+                  </td>
+                  <td className="px-3 py-2.5 text-sm text-stone-500 text-center">{g.quantidade ?? 0}</td>
+                  <td className="px-3 py-2.5 text-sm text-stone-500 text-right">{pct}%</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function PainelGrafico({ grupos, ano }) {
+  const [tipo, setTipo] = useState('saidas');
+  const rotulo = tipo === 'entradas' ? 'Entradas' : 'Saídas';
+
+  return (
+    <div className="bg-white rounded-2xl p-5 border border-brand-100 shadow-sm mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
+        <h3 style={heading} className="text-base text-stone-800">Painel Gráfico de {ano}</h3>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => setTipo('entradas')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors ${
+              tipo === 'entradas' ? 'bg-brand-600 text-white shadow-sm' : 'bg-cream-100 text-stone-500 hover:bg-cream-200'
+            }`}
+          >
+            Entradas
+          </button>
+          <button
+            onClick={() => setTipo('saidas')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors ${
+              tipo === 'saidas' ? 'bg-brand-600 text-white shadow-sm' : 'bg-cream-100 text-stone-500 hover:bg-cream-200'
+            }`}
+          >
+            Saídas
+          </button>
+        </div>
+      </div>
+      <div className="grid lg:grid-cols-2 gap-6">
+        <div className="bg-cream-50 rounded-xl p-4">
+          <p className="text-xs font-bold uppercase tracking-wide text-stone-500 mb-3">Distribuição de {rotulo} por Grupo</p>
+          <DonutDistribuicao grupos={grupos} tipo={tipo} />
+        </div>
+        <div className="bg-cream-50 rounded-xl p-4">
+          <p className="text-xs font-bold uppercase tracking-wide text-stone-500 mb-3">{rotulo} por Mês</p>
+          <BarrasPorMes grupos={grupos} tipo={tipo} />
+          <LegendaGrupos grupos={grupos} />
+        </div>
+      </div>
+      <TabelaResumoGrupos grupos={grupos} tipo={tipo} />
     </div>
   );
 }
@@ -717,26 +828,8 @@ export default function PrestacaoBancos() {
             )}
           </div>
 
-          {mes === 0 && (
-            <div className="bg-white rounded-2xl p-5 border border-brand-100 shadow-sm mb-6">
-              <div className="flex items-center justify-between mb-2">
-                <h3 style={heading} className="text-base text-stone-800">Painel Gráfico de {ano}</h3>
-                <span className="text-xs text-stone-400">Composição das saídas por grupo</span>
-              </div>
-              {relatorio && (
-                <div className="grid lg:grid-cols-2 gap-6">
-                  <div className="bg-cream-50 rounded-xl p-4">
-                    <p className="text-xs font-bold uppercase tracking-wide text-stone-500 mb-3">Distribuição de Saídas</p>
-                    <DonutSaidas grupos={relatorio.grupos} />
-                  </div>
-                  <div className="bg-cream-50 rounded-xl p-4">
-                    <p className="text-xs font-bold uppercase tracking-wide text-stone-500 mb-3">Saídas por Mês</p>
-                    <BarrasMensais grupos={relatorio.grupos} />
-                    <LegendaGrupos grupos={relatorio.grupos} />
-                  </div>
-                </div>
-              )}
-            </div>
+          {mes === 0 && relatorio && (
+            <PainelGrafico grupos={montarListaGrupos(grupos, relatorio.grupos)} ano={ano} />
           )}
 
           <div className="flex flex-col lg:flex-row gap-6">
@@ -764,16 +857,70 @@ export default function PrestacaoBancos() {
                 </div>
               </div>
 
+              {modoClassificar && selecionadas.size > 0 && (
+                <div className="bg-white rounded-2xl p-4 border border-brand-200 shadow-sm mb-4 animate-in fade-in">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-bold whitespace-nowrap">
+                      <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-brand-600 text-white text-xs mr-1.5">
+                        {selecionadas.size}
+                      </span>
+                      {selecionadas.size === 1 ? 'lançamento selecionado' : 'lançamentos selecionados'}
+                    </span>
+                    {grupos.length === 0 ? (
+                      <span className="flex-1 flex flex-wrap items-center gap-2 text-sm text-stone-500">
+                        Nenhum grupo cadastrado ainda.
+                        <button
+                          onClick={abrirNovoGrupo}
+                          disabled={salvar}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-brand-700 border border-brand-300 hover:bg-brand-50 disabled:opacity-60 transition-colors"
+                        >
+                          <FolderPlus className="w-3.5 h-3.5" /> Criar grupo
+                        </button>
+                      </span>
+                    ) : (
+                      <>
+                        <select
+                          value={grupoClassificar}
+                          onChange={(e) => setGrupoClassificar(e.target.value)}
+                          className="flex-1 min-w-40 px-3 py-2 rounded-lg border border-cream-200 bg-white text-sm text-stone-700"
+                        >
+                          <option value="" className="text-stone-800">Escolher grupo…</option>
+                          {grupos.map((g) => (
+                            <option key={g.id} value={g.id} className="text-stone-800">{g.nome}</option>
+                          ))}
+                        </select>
+                        <button
+                          onClick={() => aplicarClassificacao(false)}
+                          disabled={salvar}
+                          className="px-4 py-2 rounded-lg bg-brand-600 text-white text-sm font-bold hover:bg-brand-500 disabled:opacity-60 transition-colors"
+                        >
+                          {salvar ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Classificar'}
+                        </button>
+                        <button
+                          onClick={() => aplicarClassificacao(true)}
+                          disabled={salvar}
+                          title="Remover a classificação dos lançamentos selecionados"
+                          className="px-3 py-2 rounded-lg text-xs font-semibold text-red-600 border border-red-500 hover:bg-red-50 disabled:opacity-60 transition-colors"
+                        >
+                          Remover grupo
+                        </button>
+                      </>
+                    )}
+                    <button
+                      onClick={() => setSelecionadas(new Set())}
+                      className="px-3 py-2 rounded-lg text-xs font-semibold text-stone-400 hover:text-stone-700 transition-colors"
+                    >
+                      Limpar
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div className="bg-white rounded-2xl p-5 border border-cream-200 shadow-sm">
                 <div className="flex items-center justify-between mb-4">
                   <h3 style={heading} className="text-base text-stone-800">
                     Movimentações de {periodo}
                   </h3>
-                  {modoClassificar && (
-                    <span className="text-xs font-semibold text-stone-500">
-                      {selecionadas.size} selecionado(s)
-                    </span>
-                  )}
                   {mes !== 0 && transacoesDoMes.length > 0 && (
                     <button
                       onClick={limparMesCompleto}
@@ -909,43 +1056,6 @@ export default function PrestacaoBancos() {
               )}
             </div>
           </div>
-        </div>
-      )}
-
-      {modoClassificar && selecionadas.size > 0 && (
-        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-40 w-[min(95vw,38rem)] bg-stone-800 text-white rounded-2xl shadow-2xl px-4 py-3 flex flex-wrap items-center gap-3 animate-in slide-in-up">
-          <span className="text-sm font-bold whitespace-nowrap">{selecionadas.size} lançamento(s)</span>
-          <select
-            value={grupoClassificar}
-            onChange={(e) => setGrupoClassificar(e.target.value)}
-            className="flex-1 min-w-32 px-3 py-2 rounded-lg bg-stone-700 text-white text-sm border border-stone-600"
-          >
-            <option value="">Escolher grupo…</option>
-            {grupos.map((g) => (
-              <option key={g.id} value={g.id}>{g.nome}</option>
-            ))}
-          </select>
-          <button
-            onClick={() => aplicarClassificacao(false)}
-            disabled={salvar}
-            className="px-4 py-2 rounded-lg bg-brand-600 text-white text-sm font-bold hover:bg-brand-500 disabled:opacity-60 transition-colors"
-          >
-            {salvar ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Classificar'}
-          </button>
-          <button
-            onClick={() => aplicarClassificacao(true)}
-            disabled={salvar}
-            title="Remover a classificação dos lançamentos selecionados"
-            className="px-3 py-2 rounded-lg text-xs font-semibold text-red-300 border border-red-400/40 hover:bg-red-500/10 transition-colors"
-          >
-            Remover grupo
-          </button>
-          <button
-            onClick={() => setSelecionadas(new Set())}
-            className="px-3 py-2 rounded-lg text-xs font-semibold text-stone-400 hover:text-white transition-colors"
-          >
-            Limpar
-          </button>
         </div>
       )}
 
