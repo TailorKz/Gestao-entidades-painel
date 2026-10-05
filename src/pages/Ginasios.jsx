@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Copy, Dumbbell, Loader2, Minus, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { api, obterMensagemErro } from '../services/api';
 
-const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 const DIAS = [
   { valor: 'SEGUNDA', rotulo: 'Segunda-feira' },
   { valor: 'TERCA', rotulo: 'Terça-feira' },
@@ -23,31 +22,20 @@ const fmtValor = (v) => Number(v || 0).toFixed(2).replace('.', ',');
 const fmtDataBR = (iso) => iso.split('-').reverse().join('/');
 const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
-const anoAtual = new Date().getFullYear();
-const gerarOpcoesMes = () => {
-  const lista = [];
-  for (let a = anoAtual; a <= anoAtual + 1; a++) {
-    for (let m = 0; m < 12; m++) lista.push({ ano: a, mes: m, chave: `${a}-${String(m + 1).padStart(2, '0')}` });
-  }
-  return lista;
-};
-const OPCOES_MES = gerarOpcoesMes();
-
-const proximoMes = (de, quantMeses) => {
-  const total = de.ano * 12 + de.mes + (quantMeses - 1);
-  return `${Math.floor(total / 12)}-${String((total % 12) + 1).padStart(2, '0')}`;
-};
-
 const Ginasios = () => {
   const [painel, setPainel] = useState(null);
   const [erro, setErro] = useState('');
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
   const [copiadoId, setCopiadoId] = useState(null);
-  const hoje = new Date();
-  const [periodo, setPeriodo] = useState({
-    de: { ano: hoje.getFullYear(), mes: hoje.getMonth() },
-    quantMeses: 2,
+
+  const [periodo, setPeriodo] = useState(() => {
+    const hoje0 = new Date();
+    const mesSeguido = new Date(hoje0.getFullYear(), hoje0.getMonth() + 1, 1);
+    return {
+      de: { ano: hoje0.getFullYear(), mes: hoje0.getMonth() },
+      ate: { ano: mesSeguido.getFullYear(), mes: mesSeguido.getMonth() },
+    };
   });
   const [acao, setAcao] = useState(null);
   const [modalAjuste, setModalAjuste] = useState(null);
@@ -61,7 +49,7 @@ const Ginasios = () => {
     async (force = false) => {
       const tenantId = localStorage.getItem('tenantId') || null;
       const mesInicio = fmtMes(periodo.de.ano, periodo.de.mes);
-      const mesFim = proximoMes(periodo.de, periodo.quantMeses);
+      const mesFim = fmtMes(periodo.ate.ano, periodo.ate.mes);
       const chaveAtual = `${tenantId || 'anon'}|${mesInicio}|${mesFim}`;
       if (!force && chaveAtual === sessaoRef.current) return;
       sessaoRef.current = chaveAtual;
@@ -73,9 +61,12 @@ const Ginasios = () => {
         setPainel(data);
         setErro('');
         const [a0, m0] = data.periodo.mesInicio.split('-').map(Number);
-        const quantMeses = proximoMes({ ano: a0, mes: m0 - 1 }, 2) === data.periodo.mesFim ? 2 : 1;
-        if (a0 !== periodo.de.ano || m0 - 1 !== periodo.de.mes || quantMeses !== periodo.quantMeses) {
-          setPeriodo({ de: { ano: a0, mes: m0 - 1 }, quantMeses });
+        const [a1, m1] = data.periodo.mesFim.split('-').map(Number);
+        const mudou =
+          a0 !== periodo.de.ano || m0 - 1 !== periodo.de.mes ||
+          a1 !== periodo.ate.ano || m1 - 1 !== periodo.ate.mes;
+        if (mudou) {
+          setPeriodo({ de: { ano: a0, mes: m0 - 1 }, ate: { ano: a1, mes: m1 - 1 } });
         }
       } catch (e) {
         setErro(obterMensagemErro(e));
@@ -85,7 +76,7 @@ const Ginasios = () => {
         setCarregando(false);
       }
     },
-    [periodo.de, periodo.quantMeses]
+    [periodo.de, periodo.ate]
   );
 
   useEffect(() => {
@@ -95,11 +86,14 @@ const Ginasios = () => {
 
   const mudarInicio = (chave) => {
     const [a, m] = chave.split('-').map(Number);
+    if (!a || !m) return;
     setPeriodo((prev) => ({ ...prev, de: { ano: a, mes: m - 1 } }));
   };
 
-  const mudarQuantidade = (quantMeses) => {
-    setPeriodo((prev) => ({ ...prev, quantMeses }));
+  const mudarFim = (chave) => {
+    const [a, m] = chave.split('-').map(Number);
+    if (!a || !m) return;
+    setPeriodo((prev) => ({ ...prev, ate: { ano: a, mes: m - 1 } }));
   };
 
   const ginasiosVisiveis = useMemo(
@@ -169,7 +163,7 @@ const Ginasios = () => {
 
   const limitesAjuste = () => {
     const deStr = painel?.periodo?.mesInicio || fmtMes(periodo.de.ano, periodo.de.mes);
-    const ateStr = painel?.periodo?.mesFim || proximoMes(periodo.de, periodo.quantMeses);
+    const ateStr = painel?.periodo?.mesFim || fmtMes(periodo.ate.ano, periodo.ate.mes);
     const primeiro = `${deStr}-01`;
     const ultimoDia = new Date(Number(ateStr.slice(0, 4)), Number(ateStr.slice(5, 7)), 0).getDate();
     const ultimo = `${ateStr}-${String(ultimoDia).padStart(2, '0')}`;
@@ -253,7 +247,13 @@ const Ginasios = () => {
         .filter((d) => d.tipo === 'REMOVIDO' && ehDiaDaPessoa(d.data))
         .map((d) => fmtDataBR(d.data))
     )];
-    const msg = `Olá, tudo bem? Para os meses ${rotuloPeriodo}, total de ${pessoa.diasCobrados} jogo(s), sem jogo nos dias ${semJogo.length ? semJogo.join(', ') : 'nenhum'}, valor total de ${fmtMoeda(pessoa.valor)}, está correto ou teve mais algum dia não jogado?`;
+    const situacaoJogo = semJogo.length
+      ? `sem jogo nos dias ${semJogo.join(', ')}`
+      : 'todos os dias jogados';
+    const pergunta = semJogo.length
+      ? 'está correto ou teve mais algum dia não jogado?'
+      : 'está correto?';
+    const msg = `Olá, tudo bem? Para os meses ${rotuloPeriodo}, total de ${pessoa.diasCobrados} jogos, ${situacaoJogo}, valor total de ${fmtMoeda(pessoa.valor)}, ${pergunta}`;
     try {
       await navigator.clipboard.writeText(msg);
       setCopiadoId(pessoa.reservaId);
@@ -284,37 +284,24 @@ const Ginasios = () => {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <label className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700">
-              Mês inicial
-              <select
+              De
+              <input
+                type="month"
                 value={fmtMes(periodo.de.ano, periodo.de.mes)}
                 onChange={(e) => mudarInicio(e.target.value)}
                 className="cursor-pointer bg-transparent font-medium text-brand-700 focus:outline-none"
-              >
-                {OPCOES_MES.map((m) => (
-                  <option key={m.chave} value={m.chave}>
-                    {MESES[m.mes]} {m.ano}
-                  </option>
-                ))}
-              </select>
+              />
             </label>
-            <div className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white p-1 text-sm font-semibold">
-              <button
-                onClick={() => mudarQuantidade(1)}
-                className={`rounded-lg px-3 py-1.5 transition ${
-                  periodo.quantMeses === 1 ? 'bg-brand-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                1 mês
-              </button>
-              <button
-                onClick={() => mudarQuantidade(2)}
-                className={`rounded-lg px-3 py-1.5 transition ${
-                  periodo.quantMeses === 2 ? 'bg-brand-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                2 meses
-              </button>
-            </div>
+            <label className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700">
+              Até
+              <input
+                type="month"
+                value={fmtMes(periodo.ate.ano, periodo.ate.mes)}
+                min={fmtMes(periodo.de.ano, periodo.de.mes)}
+                onChange={(e) => mudarFim(e.target.value)}
+                className="cursor-pointer bg-transparent font-medium text-brand-700 focus:outline-none"
+              />
+            </label>
             <button
               onClick={abrirAdicionarPessoa}
               className="flex items-center gap-1.5 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-700"

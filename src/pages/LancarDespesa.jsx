@@ -91,8 +91,20 @@ export default function LancarDespesa() {
     carregarAcoes();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { const h = () => { carregarParcelas(); carregarAcoes(); }; window.addEventListener('setor-changed', h); return () => window.removeEventListener('setor-changed', h); }, []);
+  useEffect(() => {
+    const h = () => {
+      // A lista de instrutores também depende do setor: sem recarregar aqui, a página
+      // continuaria exibindo os instrutores do setor anterior (ex.: Esporte com setor Cultura).
+      setInstrutorId('');
+      setAcaoGerrId('');
+      carregarInstrutores();
+      carregarParcelas();
+      carregarAcoes();
+    };
+    window.addEventListener('setor-changed', h);
+    return () => window.removeEventListener('setor-changed', h);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   useEffect(() => {
     if (parcelaSelecionada) {
       // eslint-disable-next-line react-hooks/set-state-in-effect

@@ -11,6 +11,7 @@ import LancarDespesa from './pages/LancarDespesa';
 import EmprestimosEventos from './pages/EmprestimosEventos';
 import Ginasios from './pages/Ginasios';
 import AcoesGerr from './pages/AcoesGerr';
+import ChecklistPagamentos from './pages/ChecklistPagamentos';
 import LayoutGestor from './components/LayoutGestor';
 import RequireAuth from './components/RequireAuth';
 
@@ -32,6 +33,7 @@ export default function App() {
                     <Route path="/ginasios" element={<Ginasios />} />
                     <Route path="/acoes-gerr" element={<AcoesGerr />} />
                     <Route path="/painel" element={<PainelGestor />} />
+                    <Route path="/checklist-pagamentos" element={<ChecklistPagamentos />} />
                 </Route>
 
                 <Route path="/admin" element={<Navigate to="/gestor" replace />} />

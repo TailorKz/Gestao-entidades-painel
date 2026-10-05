@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, LogOut, Wallet, Activity, Music, Send, ArrowLeftRight, Bell, Dumbbell, Menu, X, Landmark, Banknote, Settings } from 'lucide-react';
+import { LayoutDashboard, Users, LogOut, Wallet, Activity, Music, Send, ArrowLeftRight, Bell, Dumbbell, Menu, X, Landmark, Banknote, Settings, ClipboardCheck } from 'lucide-react';
 import { SETORES, getSetorAtivo, setSetorAtivo } from '../services/setor';
 import { api } from '../services/api';
 
@@ -87,12 +87,13 @@ export default function LayoutGestor() {
   const menuItems = [
     { path: '/gestor', label: 'Visão Geral', icon: LayoutDashboard },
     { path: '/prestacoes', label: 'Controle de Parcelas', icon: Wallet },
-    { path: '/comprovantes', label: 'Comprovantes', icon: Landmark },
-    { path: '/prestacao-bancos', label: 'Prestação Bancos', icon: Banknote },
     { path: '/lancar-despesa', label: 'Lançar Despesa', icon: Send },
+    { path: '/painel', label: 'Equipe de Instrutores', icon: Users },
+    { path: '/checklist-pagamentos', label: 'Checklist de Pagamentos', icon: ClipboardCheck },
+    { path: '/comprovantes', label: 'Comprovantes', icon: Landmark },
     { path: '/emprestimos-eventos', label: 'Empréstimos e Eventos', icon: ArrowLeftRight },
     { path: '/ginasios', label: 'Controle de Ginásios', icon: Dumbbell },
-    { path: '/painel', label: 'Equipe de Instrutores', icon: Users },
+    { path: '/prestacao-bancos', label: 'Prestação Bancos', icon: Banknote },
     ...(ehSuperAdmin ? [{ path: '/acoes-gerr', label: 'Ações GERR', icon: Settings }] : []),
   ];
 
@@ -254,7 +255,8 @@ export default function LayoutGestor() {
           </nav>
 
           <p className="px-3 mt-6 text-[10px] text-stone-400 leading-relaxed">
-            O seletor de setor no topo filtra todos os dados exibidos nas páginas.
+            O seletor de setor no topo filtra os dados das páginas, exceto o Checklist de Pagamentos, que lista
+            todos os instrutores.
           </p>
         </aside>
 
@@ -313,7 +315,8 @@ export default function LayoutGestor() {
             </nav>
 
             <p className="px-3 mt-6 text-[10px] text-stone-400 leading-relaxed">
-              O seletor de setor filtra todos os dados exibidos nas páginas.
+              O seletor de setor filtra os dados das páginas, exceto o Checklist de Pagamentos, que lista todos os
+              instrutores.
             </p>
           </aside>
         </div>
