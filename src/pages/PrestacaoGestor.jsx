@@ -136,9 +136,9 @@ export default function PrestacaoGestor() {
         try {
             const res = await api.get(`/despesas/${despesa.id}/anexos`);
             const nota = (res.data || []).find(a => a.tipo === 'NOTA_FISCAL');
-            if (!nota || !nota.urlS3) return alert("Esta despesa não possui nota fiscal anexada.");
+            if (!nota || !nota.caminhoReal) return alert("Esta despesa não possui nota fiscal anexada.");
             const apiBase = api.defaults.baseURL || 'http://localhost:8080';
-            window.open(`${apiBase}/arquivos/${encodeURIComponent(nota.urlS3)}`, '_blank');
+            window.open(`${apiBase}/arquivos/${encodeURIComponent(nota.caminhoReal)}`, '_blank');
         } catch (error) {
             console.error("Erro ao abrir a nota:", error);
             alert("Não foi possível abrir a nota fiscal.");
