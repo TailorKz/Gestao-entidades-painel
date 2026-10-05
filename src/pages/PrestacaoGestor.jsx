@@ -1,5 +1,6 @@
 import { useState, useEffect, Fragment } from 'react';
 import { api, obterMensagemErro } from '../services/api';
+import { abrirArquivoEmNovaAba } from '../services/arquivos';
 import { categoriaQueryParam, getSetorAtivo, selecionarParcela, salvarParcelaLembrada } from '../services/setor';
 import { Calculator, Activity, Trash2, Check, Loader2, Plus, Edit2, X, CalendarDays, FileDown, Landmark, Minus, Tag, CheckCircle2, Clock, Eye } from 'lucide-react';
 import EditarDespesaInline from '../components/EditarDespesaInline';
@@ -137,11 +138,10 @@ export default function PrestacaoGestor() {
             const res = await api.get(`/despesas/${despesa.id}/anexos`);
             const nota = (res.data || []).find(a => a.tipo === 'NOTA_FISCAL');
             if (!nota || !nota.caminhoReal) return alert("Esta despesa não possui nota fiscal anexada.");
-            const apiBase = api.defaults.baseURL || 'http://localhost:8080';
-            window.open(`${apiBase}/arquivos/${encodeURIComponent(nota.caminhoReal)}`, '_blank');
+            await abrirArquivoEmNovaAba(nota.caminhoReal);
         } catch (error) {
             console.error("Erro ao abrir a nota:", error);
-            alert("Não foi possível abrir a nota fiscal.");
+            alert(error.message || "Não foi possível abrir a nota fiscal.");
         }
     };
 

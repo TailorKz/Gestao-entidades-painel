@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { api, obterMensagemErro } from '../services/api';
+import { abrirArquivoEmNovaAba } from '../services/arquivos';
 import { categoriaQueryParam, getSetorAtivo } from '../services/setor';
 import {
   Landmark, Link2, Loader2, Check, X, FileText, CalendarDays,
@@ -122,10 +123,13 @@ export default function ComprovantesGestor() {
     }
   };
 
-  const verPdf = (comp) => {
+  const verPdf = async (comp) => {
     if (!comp.chaveS3) return;
-    const apiBase = api.defaults.baseURL || 'http://localhost:8080';
-    window.open(`${apiBase}/arquivos/${encodeURIComponent(comp.chaveS3)}`, '_blank');
+    try {
+      await abrirArquivoEmNovaAba(comp.chaveS3);
+    } catch (error) {
+      alert(error.message || 'Não foi possível abrir o comprovante.');
+    }
   };
 
   const exclusaoConfirmacao = (comp) => comp.despesaId

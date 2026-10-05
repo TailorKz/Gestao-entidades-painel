@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { api, obterMensagemErro } from '../services/api';
+import { abrirArquivoEmNovaAba } from '../services/arquivos';
 import { categoriaQueryParam, getSetorAtivo } from '../services/setor';
 import { Users, UserPlus, X, Activity, Music, ArrowLeft, ArrowRight, FileText, Send, Trash2 } from 'lucide-react';
 
@@ -115,10 +116,12 @@ export default function PainelGestor() {
     }
   };
 
-  const abrirPdfEmNovaAba = (caminhoCompleto) => {
-    const nomeArquivo = caminhoCompleto.replace('uploads\\', '').replace('uploads/', '');
-    const apiBase = api.defaults.baseURL || 'http://localhost:8080';
-    window.open(`${apiBase}/arquivos/${nomeArquivo}`, '_blank');
+  const abrirPdfEmNovaAba = async (chaveArquivo) => {
+    try {
+      await abrirArquivoEmNovaAba(chaveArquivo.replace(/^uploads[\\/]/, ''));
+    } catch (error) {
+      alert(error.message || 'Não foi possível abrir o arquivo.');
+    }
   };
 
   const renderStatus = (status) => {

@@ -1,5 +1,6 @@
 import { useState, useEffect, Fragment, useRef } from 'react';
 import { api, obterMensagemErro } from '../services/api';
+import { abrirArquivoEmNovaAba } from '../services/arquivos';
 import { categoriaQueryParam, getSetorAtivo, selecionarParcela, salvarParcelaLembrada } from '../services/setor';
 import {
   Send, Briefcase, UserPlus, UploadCloud, FileText, Trash2,
@@ -242,11 +243,10 @@ export default function LancarDespesa() {
       const res = await api.get(`/despesas/${d.id}/anexos`);
       const nota = (res.data || []).find(a => a.tipo === 'NOTA_FISCAL');
       if (!nota || !nota.caminhoReal) return alert("Esta despesa não possui nota fiscal anexada.");
-      const apiBase = api.defaults.baseURL || 'http://localhost:8080';
-      window.open(`${apiBase}/arquivos/${encodeURIComponent(nota.caminhoReal)}`, '_blank');
+      await abrirArquivoEmNovaAba(nota.caminhoReal);
     } catch (error) {
       console.error("Erro ao abrir a nota:", error);
-      alert("Não foi possível abrir a nota fiscal.");
+      alert(error.message || "Não foi possível abrir a nota fiscal.");
     }
   };
 
