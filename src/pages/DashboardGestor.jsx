@@ -128,11 +128,15 @@ export default function DashboardGestor() {
 
                         <div className={`p-5 rounded-2xl border shadow-sm flex flex-col transition-colors ${resumo?.instrutoresPendentes > 0 ? 'bg-amber-50/60 border-amber-200' : 'bg-white border-cream-200'}`}>
                             <div className="flex items-center justify-between mb-4">
-                                <h3 className={`text-xs font-bold uppercase tracking-wider ${resumo?.instrutoresPendentes > 0 ? 'text-amber-700' : 'text-stone-500'}`}>Aguardando Envio</h3>
+                                <h3 className={`text-xs font-bold uppercase tracking-wider ${resumo?.instrutoresPendentes > 0 ? 'text-amber-700' : 'text-stone-500'}`}>Pagamentos Pendentes</h3>
                                 <div className="p-2 bg-amber-100 rounded-xl"><Clock3 className="w-4 h-4 text-amber-600" /></div>
                             </div>
-                            <p style={heading} className={`text-3xl ${resumo?.instrutoresPendentes > 0 ? 'text-amber-700' : 'text-stone-900'}`}>{resumo?.instrutoresPendentes || 0}</p>
-                            <p className="text-xs text-stone-500 mt-2">Faltam prestar contas</p>
+                            <p style={heading} className={`text-3xl ${resumo?.instrutoresPendentes > 0 ? 'text-amber-700' : 'text-stone-900'}`}>{resumo?.pagamentosFaltantesTotal ?? 0}</p>
+                            <p className="text-xs text-stone-500 mt-2">
+                                {resumo?.instrutoresPendentes > 0
+                                    ? `Faltando em ${resumo.instrutoresPendentes} de ${resumo.totalInstrutores} instrutores`
+                                    : 'Todos em dia'}
+                            </p>
                         </div>
 
                         <div className="bg-white p-5 rounded-2xl border border-cream-200 shadow-sm flex flex-col">
@@ -165,12 +169,21 @@ export default function DashboardGestor() {
                             <h3 style={heading} className="text-sm text-stone-900">
                                 {resumo?.instrutoresPendentes > 0 ? 'Atenção Requerida: Instrutores Pendentes' : 'Tudo em Dia! Nenhuma pendência.'}
                             </h3>
+                            {resumo?.instrutoresPendentes > 0 && (
+                                <span className="ml-auto text-[11px] font-semibold text-amber-700 bg-white border border-amber-200 rounded-full px-2.5 py-1">
+                                    {resumo.pagamentosFaltantesTotal} pagamento{resumo.pagamentosFaltantesTotal === 1 ? '' : 's'} faltando em {resumo.instrutoresPendentes} instrutor{resumo.instrutoresPendentes === 1 ? '' : 'es'}
+                                </span>
+                            )}
                         </div>
 
                         <div className="p-0">
                             {resumo?.instrutoresPendentes === 0 ? (
                                 <div className="text-center py-10 bg-white">
-                                    <p className="text-sm text-stone-500 font-medium">Todos os instrutores já enviaram suas prestações de contas para esta parcela. 🎉</p>
+                                    <p className="text-sm text-stone-500 font-medium">
+                                        {resumo?.instrutoresCompletos > 0
+                                            ? `Todos os ${resumo.instrutoresCompletos} instrutores lançaram os ${resumo.pagamentosEsperadosPorInstrutor} pagamentos nesta parcela.`
+                                            : `Todos os instrutores lançaram ${resumo?.pagamentosEsperadosPorInstrutor || 2} pagamentos nesta parcela.`}
+                                    </p>
                                 </div>
                             ) : (
                                 <ul className="divide-y divide-cream-100">
@@ -185,10 +198,19 @@ export default function DashboardGestor() {
                                                     <p className="text-[11px] font-medium text-stone-500 uppercase tracking-wide mt-0.5">
                                                         Categoria: {instrutor.categoria || 'Não definida'}
                                                     </p>
+                                                    <p className="text-[11px] font-medium text-stone-600 mt-1">
+                                                        {instrutor.pagamentosLancados} de {resumo.pagamentosEsperadosPorInstrutor} pagamentos lançados
+                                                        {instrutor.pagamentosLancados === 0 && (
+                                                            <span className="text-amber-700"> — nenhum lançamento nesta parcela</span>
+                                                        )}
+                                                    </p>
                                                 </div>
                                             </div>
                                             <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full uppercase tracking-wide">
-                                                <Clock3 className="w-3 h-3" /> Aguardando envio
+                                                <Clock3 className="w-3 h-3" />
+                                                {instrutor.pagamentosLancados === 0
+                                                    ? 'Aguardando envio'
+                                                    : `Falta ${instrutor.pagamentosFaltantes}`}
                                             </span>
                                         </li>
                                     ))}
