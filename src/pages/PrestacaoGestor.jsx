@@ -2,7 +2,7 @@ import { useState, useEffect, Fragment } from 'react';
 import { api, obterMensagemErro } from '../services/api';
 import { abrirArquivoEmNovaAba } from '../services/arquivos';
 import { categoriaQueryParam, getSetorAtivo, selecionarParcela, salvarParcelaLembrada } from '../services/setor';
-import { Calculator, Activity, Trash2, Check, Loader2, Plus, Edit2, X, CalendarDays, FileDown, Landmark, Minus, Tag, CheckCircle2, Clock, Eye } from 'lucide-react';
+import { Calculator, Activity, Trash2, Check, Loader2, Plus, Edit2, X, CalendarDays, FileDown, Landmark, Minus, Tag, CheckCircle2, Clock, Eye, ArrowUp, ArrowDown } from 'lucide-react';
 import EditarDespesaInline from '../components/EditarDespesaInline';
 import ModalConciliacao from '../components/ModalConciliacao';
 import SelectResumido from '../components/SelectResumido';
@@ -124,6 +124,24 @@ export default function PrestacaoGestor() {
         } catch (error) { alert(obterMensagemErro(error, "Erro ao salvar o gasto.")); }
         finally { setIsSaving(false); }
     };
+
+    const reordenar = async (lista, setLista, endpoint, index, direcao) => {
+        const alvo = index + direcao;
+        if (alvo < 0 || alvo >= lista.length) return;
+        const nova = [...lista];
+        const [item] = nova.splice(index, 1);
+        nova.splice(alvo, 0, item);
+        setLista(nova);
+        try {
+            await api.put(endpoint, { parcelaId: parcelaSelecionada.id, ids: nova.map(x => x.id) });
+        } catch (error) {
+            alert(obterMensagemErro(error, "Erro ao reordenar."));
+            await carregarGastosDaParcela(parcelaSelecionada.id);
+        }
+    };
+
+    const moverEstimativa = (index, direcao) => reordenar(estimativas, setEstimativas, '/estimativas/ordem', index, direcao);
+    const moverDespesa = (index, direcao) => reordenar(despesas, setDespesas, '/despesas/ordem', index, direcao);
 
     const handleExcluirDespesa = async (despesa) => {
         if (!window.confirm("Excluir esta despesa? O valor será devolvido ao saldo da parcela.")) return;
@@ -353,18 +371,20 @@ export default function PrestacaoGestor() {
                 {abaAtiva === 'ESTIMADA' && (
                     <div className="overflow-x-auto">
                         <table className="w-full text-left border-collapse min-w-[560px]">
-                            <thead>
-                                <tr className="border-b-2 border-cream-200 text-stone-800 text-sm">
-                                    <th className="px-6 py-4 font-bold">Descrição</th>
-                                    <th className="px-6 py-4 font-bold w-48">Valor (R$)</th>
-                                    <th className="px-6 py-4 w-16"></th>
-                                </tr>
-                            </thead>
+<thead>
+                                    <tr className="border-b-2 border-cream-200 text-stone-800 text-sm">
+                                        <th className="px-4 py-4 font-bold w-24 text-center">#</th>
+                                        <th className="px-6 py-4 font-bold">Descrição</th>
+                                        <th className="px-6 py-4 font-bold w-48">Valor (R$)</th>
+                                        <th className="px-6 py-4 w-16"></th>
+                                    </tr>
+                                </thead>
                             <tbody>
                                 {estimativas.map((est, index) => (
                                     <tr key={est.id} className={`${index % 2 === 0 ? 'bg-white' : 'bg-cream-50/50'} border-b border-cream-100 group`}>
                                         {estimativaEmEdicao?.id === est.id ? (
                                             <>
+                                                <td className="px-4 py-3.5" />
                                                 <td className="px-6 py-3.5">
                                                     <input
                                                         type="text"
@@ -392,6 +412,17 @@ export default function PrestacaoGestor() {
                                             </>
                                         ) : (
                                             <>
+                                                <td className="px-4 py-3.5">
+                                                    <div className="flex items-center justify-center gap-1">
+                                                        <span className="text-xs font-bold text-stone-400 w-5 text-center">{index + 1}</span>
+                                                        <button onClick={() => moverEstimativa(index, -1)} disabled={index === 0} className="text-stone-300 hover:text-brand-700 disabled:opacity-20 transition-colors p-0.5" title="Mover para cima">
+                                                            <ArrowUp className="w-3.5 h-3.5" />
+                                                        </button>
+                                                        <button onClick={() => moverEstimativa(index, 1)} disabled={index === estimativas.length - 1} className="text-stone-300 hover:text-brand-700 disabled:opacity-20 transition-colors p-0.5" title="Mover para baixo">
+                                                            <ArrowDown className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    </div>
+                                                </td>
                                                 <td className="px-6 py-3.5 text-sm text-stone-700">{legendaEstimativa(est.descricao)}</td>
                                                 <td className="px-6 py-3.5 text-sm font-medium text-stone-900">{formatarMoeda(est.valor)}</td>
                                                 <td className="px-6 py-3.5 text-right">
@@ -409,6 +440,7 @@ export default function PrestacaoGestor() {
 
                                 {/* Linha Contínua */}
                                 <tr className="bg-brand-50/40 border-b border-cream-200">
+                                    <td className="px-4 py-3"></td>
                                     <td className="px-4 py-3">
                                         <input
                                             type="text" placeholder="Descreva o novo gasto..."
@@ -441,6 +473,7 @@ export default function PrestacaoGestor() {
                             <table className="w-full text-left border-collapse min-w-[640px]">
                                 <thead>
                                     <tr className="border-b-2 border-cream-200 text-stone-800 text-sm">
+                                        <th className="px-4 py-4 font-bold w-24 text-center">#</th>
                                         <th className="px-6 py-4 font-bold">Empresa</th>
                                         <th className="px-6 py-4 font-bold">Competência</th>
                                         <th className="px-6 py-4 font-bold">Valor (R$)</th>
@@ -451,11 +484,22 @@ export default function PrestacaoGestor() {
                                 </thead>
                                 <tbody>
                                     {despesas.length === 0 ? (
-                                        <tr><td colSpan="6" className="px-6 py-12 text-center text-sm text-stone-500">Nenhuma prestação recebida para esta parcela.</td></tr>
+                                        <tr><td colSpan="7" className="px-6 py-12 text-center text-sm text-stone-500">Nenhuma prestação recebida para esta parcela.</td></tr>
                                     ) : (
                                         despesas.map((despesa, index) => (
                                         <Fragment key={despesa.id}>
                                         <tr className={`${index % 2 === 0 ? 'bg-white' : 'bg-cream-50/50'} border-b border-cream-100`}>
+                                            <td className="px-4 py-4">
+                                                <div className="flex items-center justify-center gap-1">
+                                                    <span className="text-xs font-bold text-stone-400 w-5 text-center">{index + 1}</span>
+                                                    <button onClick={() => moverDespesa(index, -1)} disabled={index === 0} className="text-stone-300 hover:text-brand-700 disabled:opacity-20 transition-colors p-0.5" title="Mover para cima">
+                                                        <ArrowUp className="w-3.5 h-3.5" />
+                                                    </button>
+                                                    <button onClick={() => moverDespesa(index, 1)} disabled={index === despesas.length - 1} className="text-stone-300 hover:text-brand-700 disabled:opacity-20 transition-colors p-0.5" title="Mover para baixo">
+                                                        <ArrowDown className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </div>
+                                            </td>
                                             <td className="px-6 py-4 text-sm">
                                                 <span className="font-medium text-stone-700">{despesa.nomeEmpresa || despesa.emitente || '—'}</span>
                                                 {(despesa.descricao || despesa.observacao) && <span className="block text-xs text-stone-400 mt-0.5 truncate max-w-[260px]" title={despesa.descricao || despesa.observacao}>{despesa.descricao || despesa.observacao}</span>}

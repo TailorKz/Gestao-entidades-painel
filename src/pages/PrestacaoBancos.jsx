@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   ArrowLeft,
   Banknote,
+  BarChart3,
   Check,
   FileDown,
   FolderPlus,
@@ -442,6 +443,7 @@ export default function PrestacaoBancos() {
   const [grupos, setGrupos] = useState([]);
   const [modalGrupo, setModalGrupo] = useState({ aberto: false, modo: 'NOVA', id: null, nome: '', cor: '#0F6E65' });
   const [modoClassificar, setModoClassificar] = useState(false);
+  const [verPrestacao, setVerPrestacao] = useState(false);
   const [selecionadas, setSelecionadas] = useState(() => new Set());
   const [grupoClassificar, setGrupoClassificar] = useState('');
   const [exportando, setExportando] = useState(false);
@@ -511,6 +513,7 @@ export default function PrestacaoBancos() {
     setMeses(new Set([new Date().getMonth() + 1]));
     setMensagem('');
     setModoClassificar(false);
+    setVerPrestacao(false);
     setSelecionadas(new Set());
     setTela('conta');
     carregarGrupos(conta.id);
@@ -524,6 +527,7 @@ export default function PrestacaoBancos() {
     setGrupos([]);
     setMensagem('');
     setModoClassificar(false);
+    setVerPrestacao(false);
     setSelecionadas(new Set());
   };
 
@@ -889,19 +893,23 @@ export default function PrestacaoBancos() {
         </div>
       )}
 
-      {tela === 'conta' && contaAtiva && (
-        <div>
+      {tela === 'conta' && contaAtiva && verPrestacao && (
+        <div className="animate-in fade-in">
           <div className="flex flex-wrap items-end justify-between gap-4 mb-6">
             <div>
               <button
-                onClick={voltar}
+                onClick={() => setVerPrestacao(false)}
                 className="flex items-center gap-1.5 text-sm text-brand-700 font-semibold hover:underline mb-2"
               >
-                <ArrowLeft className="w-4 h-4" /> Voltar para Contas
+                <ArrowLeft className="w-4 h-4" /> Voltar para a conta
               </button>
               <h1 style={heading} className="text-2xl text-stone-800">
-                {contaAtiva.banco} <span className="font-normal text-stone-500">| {contaAtiva.finalidade}</span>
+                Prestação{' '}
+                <span className="font-normal text-stone-500">| {contaAtiva.banco} · {contaAtiva.finalidade}</span>
               </h1>
+              <p className="text-sm text-stone-500 mt-1">
+                {periodo} de {ano} — entradas, saídas, saldo e distribuição por grupo.
+              </p>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-sm font-semibold text-stone-500">Ano Base:</span>
@@ -914,106 +922,45 @@ export default function PrestacaoBancos() {
                   <option key={a} value={a}>{a}</option>
                 ))}
               </select>
-            </div>
-          </div>
-
-          <div className="mb-6">
-            <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-              {MESES.map((m) => {
-                const ativo = meses.has(m.num);
-                return (
-                  <button
-                    key={m.num}
-                    onClick={() => alternarMes(m.num)}
-                    className={`px-2 py-2.5 rounded-lg text-xs sm:text-sm font-bold transition-colors ${
-                      ativo ? 'bg-stone-800 text-white shadow-sm' : 'bg-white text-stone-500 border border-cream-200 hover:bg-cream-100'
-                    }`}
-                  >
-                    {m.nome}
-                  </button>
-                );
-              })}
-            </div>
-            <div className="flex flex-wrap items-center gap-2 mt-3">
               <button
-                onClick={selecionarAnoCompleto}
-                disabled={ehAnoCompleto}
-                className="px-4 py-2 rounded-lg text-xs font-bold bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50 shadow-sm"
+                onClick={exportarPdf}
+                disabled={exportando || salvar}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700 transition-colors shadow-sm disabled:opacity-60"
               >
-                Ano Completo
+                {exportando ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
+                Exportar PDF
               </button>
-              <button
-                onClick={() => selecionarSomenteMes(mesAtual)}
-                disabled={listaMeses.length === 1 && meses.has(mesAtual)}
-                className="px-4 py-2 rounded-lg text-xs font-bold bg-white text-stone-500 border border-cream-200 hover:bg-cream-100 transition-colors disabled:opacity-50"
-              >
-                Só o mês atual ({nomeMes(mesAtual)})
-              </button>
-              <span className="text-xs font-semibold text-stone-500">
-                {listaMeses.length} de 12 meses selecionados
-              </span>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 mb-6">
-            <button
-              onClick={abrirNovoGrupo}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white text-stone-700 text-sm font-semibold border border-cream-200 hover:bg-cream-100 transition-colors shadow-sm"
-            >
-              <Tags className="w-4 h-4 text-brand-700" /> Grupos
-            </button>
-            <button
-              onClick={() => {
-                setModoClassificar((v) => !v);
-                setSelecionadas(new Set());
-              }}
-              className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors shadow-sm ${
-                modoClassificar ? 'bg-stone-800 text-white' : 'bg-white text-stone-700 border border-cream-200 hover:bg-cream-100'
-              }`}
-            >
-              <Layers className="w-4 h-4 text-brand-700" />
-              {modoClassificar ? 'Sair do modo classificação' : 'Classificar lançamentos'}
-            </button>
-            <button
-              onClick={exportarPdf}
-              disabled={exportando || salvar}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700 transition-colors shadow-sm disabled:opacity-60"
-            >
-              {exportando ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
-              Exportar PDF
-            </button>
+          <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 mb-6">
+            <div className="bg-white rounded-2xl p-4 border border-cream-200 border-l-4 border-l-emerald-500 shadow-sm">
+              <p className="text-xs font-semibold text-stone-500">Entradas de {periodo}</p>
+              <p className="mt-1 text-lg font-bold text-emerald-600">R$ {formatarMoeda(totalEntradas)}</p>
+            </div>
+            <div className="bg-white rounded-2xl p-4 border border-cream-200 border-l-4 border-l-red-500 shadow-sm">
+              <p className="text-xs font-semibold text-stone-500">Saídas de {periodo}</p>
+              <p className="mt-1 text-lg font-bold text-red-600">R$ {formatarMoeda(totalSaidas)}</p>
+            </div>
+            <div className="bg-white rounded-2xl p-4 border border-cream-200 border-l-4 border-l-brand-600 shadow-sm">
+              <p className="text-xs font-semibold text-stone-500">Balanço de {periodo}</p>
+              <p className={`mt-1 text-lg font-bold ${balanco >= 0 ? 'text-stone-800' : 'text-red-600'}`}>
+                R$ {formatarMoeda(balanco)}
+              </p>
+            </div>
+            <div className="bg-stone-800 rounded-2xl p-4 shadow-sm">
+              <p className="text-xs font-semibold text-stone-400">Valor Final na Conta</p>
+              <p className={`mt-1 text-lg font-bold ${saldoFinal >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                R$ {formatarMoeda(saldoFinal)}
+              </p>
+            </div>
           </div>
 
-          {ehAnoCompleto && relatorio && (
-            <PainelGrafico grupos={montarListaGrupos(grupos, relatorio.grupos)} ano={ano} />
-          )}
+          {relatorio ? (
+            <>
+              <PainelGrafico grupos={montarListaGrupos(grupos, relatorio.grupos)} ano={ano} />
 
-          <div className="flex flex-col lg:flex-row gap-6">
-            <div className="flex-1 min-w-0 space-y-6">
-              <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
-                <div className="bg-white rounded-2xl p-4 border border-cream-200 border-l-4 border-l-emerald-500 shadow-sm">
-                  <p className="text-xs font-semibold text-stone-500">Entradas de {periodo}</p>
-                  <p className="mt-1 text-lg font-bold text-emerald-600">R$ {formatarMoeda(totalEntradas)}</p>
-                </div>
-                <div className="bg-white rounded-2xl p-4 border border-cream-200 border-l-4 border-l-red-500 shadow-sm">
-                  <p className="text-xs font-semibold text-stone-500">Saídas de {periodo}</p>
-                  <p className="mt-1 text-lg font-bold text-red-600">R$ {formatarMoeda(totalSaidas)}</p>
-                </div>
-                <div className="bg-white rounded-2xl p-4 border border-cream-200 border-l-4 border-l-brand-600 shadow-sm">
-                  <p className="text-xs font-semibold text-stone-500">Balanço de {periodo}</p>
-                  <p className={`mt-1 text-lg font-bold ${balanco >= 0 ? 'text-stone-800' : 'text-red-600'}`}>
-                    R$ {formatarMoeda(balanco)}
-                  </p>
-                </div>
-                <div className="bg-stone-800 rounded-2xl p-4 shadow-sm">
-                  <p className="text-xs font-semibold text-stone-400">Valor Final na Conta</p>
-                  <p className={`mt-1 text-lg font-bold ${saldoFinal >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
-                    R$ {formatarMoeda(saldoFinal)}
-                  </p>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-2xl p-5 border border-brand-100 shadow-sm">
+              <div className="bg-white rounded-2xl p-5 border border-brand-100 shadow-sm mb-6">
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
                   <h3 style={heading} className="text-base text-stone-800">Balanço por mês</h3>
                   <span className="text-xs font-semibold text-stone-500">Entrada × Saída × Saldo de cada mês selecionado</span>
@@ -1055,9 +1002,125 @@ export default function PrestacaoBancos() {
                 </div>
               </div>
 
-              {relatorio && (
-                <ResumoGrupoPorMes grupos={montarListaGrupos(grupos, relatorio.grupos)} meses={listaMeses} />
-              )}
+              <ResumoGrupoPorMes grupos={montarListaGrupos(grupos, relatorio.grupos)} meses={listaMeses} />
+            </>
+          ) : (
+            <div className="text-center py-16 text-sm text-stone-400 bg-white rounded-2xl border border-cream-200">
+              Carregando os dados do ano…
+            </div>
+          )}
+        </div>
+      )}
+
+      {tela === 'conta' && contaAtiva && !verPrestacao && (
+        <div>
+          <div className="flex flex-wrap items-end justify-between gap-4 mb-6">
+            <div>
+              <button
+                onClick={voltar}
+                className="flex items-center gap-1.5 text-sm text-brand-700 font-semibold hover:underline mb-2"
+              >
+                <ArrowLeft className="w-4 h-4" /> Voltar para Contas
+              </button>
+              <h1 style={heading} className="text-2xl text-stone-800">
+                {contaAtiva.banco} <span className="font-normal text-stone-500">| {contaAtiva.finalidade}</span>
+              </h1>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold text-stone-500">Ano Base:</span>
+              <select
+                value={ano}
+                onChange={(e) => setAno(Number(e.target.value))}
+                className="px-3 py-2 rounded-lg border border-cream-200 bg-white text-sm font-semibold text-stone-700"
+              >
+                {ANOS.map((a) => (
+                  <option key={a} value={a}>{a}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="mb-6">
+            <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+              {MESES.map((m) => {
+                const ativo = meses.has(m.num);
+                return (
+                  <button
+                    key={m.num}
+                    onClick={() => alternarMes(m.num)}
+                    className={`px-2 py-2.5 rounded-lg text-xs sm:text-sm font-bold transition-colors ${
+                      ativo ? 'bg-stone-800 text-white shadow-sm' : 'bg-white text-stone-500 border border-cream-200 hover:bg-cream-100'
+                    }`}
+                  >
+                    {m.nome}
+                  </button>
+                );
+              })}
+              <button
+                onClick={() => (ehAnoCompleto ? selecionarSomenteMes(mesAtual) : selecionarAnoCompleto())}
+                className={`col-span-3 sm:col-span-4 lg:col-span-7 px-2 py-2.5 rounded-lg text-xs sm:text-sm font-bold transition-colors ${
+                  ehAnoCompleto ? 'bg-brand-600 text-white shadow-sm' : 'bg-brand-50 text-brand-700 border border-brand-200 hover:bg-brand-100'
+                }`}
+              >
+                Anual
+              </button>
+            </div>
+            <p className="mt-3 text-xs font-semibold text-stone-500">
+              {ehAnoCompleto ? 'Ano completo selecionado' : `${listaMeses.length} de 12 meses selecionados`}
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 mb-6">
+            <button
+              onClick={abrirNovoGrupo}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white text-stone-700 text-sm font-semibold border border-cream-200 hover:bg-cream-100 transition-colors shadow-sm"
+            >
+              <Tags className="w-4 h-4 text-brand-700" /> Grupos
+            </button>
+            <button
+              onClick={() => {
+                setModoClassificar((v) => !v);
+                setSelecionadas(new Set());
+              }}
+              className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors shadow-sm ${
+                modoClassificar ? 'bg-stone-800 text-white' : 'bg-white text-stone-700 border border-cream-200 hover:bg-cream-100'
+              }`}
+            >
+              <Layers className="w-4 h-4 text-brand-700" />
+              {modoClassificar ? 'Sair do modo classificação' : 'Classificar lançamentos'}
+            </button>
+            <button
+              onClick={() => setVerPrestacao(true)}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700 transition-colors shadow-sm ml-auto"
+            >
+              <BarChart3 className="w-4 h-4" /> Prestação
+            </button>
+          </div>
+
+          <div className="flex flex-col lg:flex-row gap-6">
+            <div className="flex-1 min-w-0 space-y-6">
+              <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+                <div className="bg-white rounded-2xl p-4 border border-cream-200 border-l-4 border-l-emerald-500 shadow-sm">
+                  <p className="text-xs font-semibold text-stone-500">Entradas de {periodo}</p>
+                  <p className="mt-1 text-lg font-bold text-emerald-600">R$ {formatarMoeda(totalEntradas)}</p>
+                </div>
+                <div className="bg-white rounded-2xl p-4 border border-cream-200 border-l-4 border-l-red-500 shadow-sm">
+                  <p className="text-xs font-semibold text-stone-500">Saídas de {periodo}</p>
+                  <p className="mt-1 text-lg font-bold text-red-600">R$ {formatarMoeda(totalSaidas)}</p>
+                </div>
+                <div className="bg-white rounded-2xl p-4 border border-cream-200 border-l-4 border-l-brand-600 shadow-sm">
+                  <p className="text-xs font-semibold text-stone-500">Balanço de {periodo}</p>
+                  <p className={`mt-1 text-lg font-bold ${balanco >= 0 ? 'text-stone-800' : 'text-red-600'}`}>
+                    R$ {formatarMoeda(balanco)}
+                  </p>
+                </div>
+                <div className="bg-stone-800 rounded-2xl p-4 shadow-sm">
+                  <p className="text-xs font-semibold text-stone-400">Valor Final na Conta</p>
+                  <p className={`mt-1 text-lg font-bold ${saldoFinal >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                    R$ {formatarMoeda(saldoFinal)}
+                  </p>
+                </div>
+              </div>
 
               {modoClassificar && selecionadas.size > 0 && (
                 <div className="bg-white rounded-2xl p-4 border border-brand-200 shadow-sm mb-4 animate-in fade-in">

@@ -37,17 +37,15 @@ function cabecalho(doc, titulo, parcela, nomeUsuario) {
   doc.text(`Emissão: ${emissao}`, largura - 14, 15, { align: 'right' });
 }
 
-function resumoRodape(doc, finalY, linhas) {
-  if (!finalY) return;
+function resumoTopo(doc, linhas, y = 30) {
+  doc.setDrawColor(...COR_PRIMARIA);
+  doc.setLineWidth(0.4);
+  doc.line(14, y - 5, doc.internal.pageSize.getWidth() - 14, y - 5);
   doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
+  doc.setFontSize(9.5);
+  doc.setTextColor(30, 30, 30);
   linhas.forEach((linha, i) => {
-    if (i === 0) {
-      doc.setDrawColor(...COR_PRIMARIA);
-      doc.setLineWidth(0.6);
-      doc.line(14, finalY + 6, doc.internal.pageSize.getWidth() - 14, finalY + 6);
-    }
-    doc.text(linha, 14, finalY + 14 + i * 5);
+    doc.text(linha, 14, y + i * 5);
   });
 }
 
@@ -58,8 +56,12 @@ export function exportarPdfProjecao({ parcela, estimativas, nomeUsuario }) {
   const doc = new jsPDF();
   cabecalho(doc, 'Projeção de Gastos', parcela, nomeUsuario);
 
+  resumoTopo(doc, [
+    `Valor da parcela: R$ ${formatarMoeda(parcela?.valorInicial)}        Saldo projetado: R$ ${formatarMoeda(saldoProjetado)}`,
+  ]);
+
   autoTable(doc, {
-    startY: 32,
+    startY: 40,
     head: [['#', 'Descrição', 'Valor (R$)', 'Observações']],
     body: estimativas.map((e, i) => [
       String(i + 1),
@@ -79,11 +81,8 @@ export function exportarPdfProjecao({ parcela, estimativas, nomeUsuario }) {
     footStyles: { fillColor: COR_CINZA_SUAVE, textColor: [30, 30, 30], fontSize: 9 },
     styles: { fontSize: 9, cellPadding: 3, textColor: [45, 45, 45] },
     columnStyles: { 2: { halign: 'right' }, 0: { cellWidth: 12 } },
+    showFoot: 'lastPage',
   });
-
-  resumoRodape(doc, doc.lastAutoTable.finalY ?? 80, [
-    `Valor da parcela: R$ ${formatarMoeda(parcela?.valorInicial)}        Saldo projetado: R$ ${formatarMoeda(saldoProjetado)}`,
-  ]);
 
   doc.save(`Projecao-de-Gastos-Parcela-0${parcela?.numero || ''}.pdf`);
 }
@@ -95,8 +94,12 @@ export function exportarPdfPrestacoes({ parcela, despesas, nomeUsuario }) {
   const doc = new jsPDF({ orientation: 'landscape' });
   cabecalho(doc, 'Prestação em Tempo Real', parcela, nomeUsuario);
 
+  resumoTopo(doc, [
+    `Valor da parcela: R$ ${formatarMoeda(parcela?.valorInicial)}        Total gasto: R$ ${formatarMoeda(totalGasto)}        Saldo disponível: R$ ${formatarMoeda(saldo)}`,
+  ]);
+
   autoTable(doc, {
-    startY: 32,
+    startY: 40,
     head: [['#', 'Empresa', 'Competência', 'Valor (R$)', 'Status', 'Observações']],
     body: despesas.map((d, i) => [
       String(i + 1),
@@ -118,11 +121,8 @@ export function exportarPdfPrestacoes({ parcela, despesas, nomeUsuario }) {
     footStyles: { fillColor: COR_CINZA_SUAVE, textColor: [30, 30, 30], fontSize: 9 },
     styles: { fontSize: 9, cellPadding: 3, textColor: [45, 45, 45] },
     columnStyles: { 3: { halign: 'right' }, 0: { cellWidth: 12 } },
+    showFoot: 'lastPage',
   });
-
-  resumoRodape(doc, doc.lastAutoTable.finalY ?? 80, [
-    `Valor da parcela: R$ ${formatarMoeda(parcela?.valorInicial)}        Total gasto: R$ ${formatarMoeda(totalGasto)}        Saldo disponível: R$ ${formatarMoeda(saldo)}`,
-  ]);
 
   doc.save(`Prestacao-Tempo-Real-Parcela-0${parcela?.numero || ''}.pdf`);
 }
@@ -232,6 +232,7 @@ export function exportarPdfPrestacaoBancos({ conta, ano, relatorio, nomeUsuario 
     footStyles: { fillColor: COR_CINZA_SUAVE, textColor: [30, 30, 30], fontSize: 9 },
     styles: { fontSize: 9, cellPadding: 3, textColor: [45, 45, 45] },
     columnStyles: { 1: { halign: 'right' }, 2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'right' } },
+    showFoot: 'lastPage',
   });
 
   // Tabela: por mês

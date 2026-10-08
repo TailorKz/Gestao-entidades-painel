@@ -26,8 +26,10 @@ export default function ModalConciliacao({ parcela, despesas, candidatas, catego
   const [duplicados, setDuplicados] = useState(0);
   const [erros, setErros] = useState([]);
   const [processou, setProcessou] = useState(false);
-  const [vincularPara, setVincularPara] = useState({});
   const [vinculandoId, setVinculandoId] = useState(null);
+  const [painelComp, setPainelComp] = useState(null);
+  const [parcelaSel, setParcelaSel] = useState('');
+  const [busca, setBusca] = useState('');
   const inputRef = useRef(null);
 
   // Despesas que ainda aceitam comprovante (dropdown)
@@ -73,7 +75,7 @@ export default function ModalConciliacao({ parcela, despesas, candidatas, catego
     if (arquivos.length === 0) return alert("Selecione os comprovantes (PDFs ou o .zip).");
     setLendo(true);
     setProcessou(false);
-    setVincularPara({});
+    setPainelComp(null);
 
     const formData = new FormData();
     let url;
@@ -107,8 +109,26 @@ export default function ModalConciliacao({ parcela, despesas, candidatas, catego
     }
   };
 
-  const vincular = async (comprovanteId) => {
-    const despesaId = vincularPara[comprovanteId];
+  const abrirPainel = (c) => {
+    setPainelComp(prev => (prev === c.id ? null : c.id));
+    const comValor = parcelasCandidatas.find(p => p.despesas.some(d => Number(d.valor) === Number(c.valor)));
+    const alvo = comValor || parcelasCandidatas[0];
+    setParcelaSel(alvo ? String(alvo.numero) : '');
+    setBusca(c.favorecido || '');
+  };
+
+  const despesasVisiveis = (() => {
+    const p = parcelasCandidatas.find(x => String(x.numero) === String(parcelaSel));
+    if (!p) return [];
+    const alvo = busca.trim().toLowerCase();
+    if (!alvo) return p.despesas;
+    return p.despesas.filter(d => {
+      const nome = `${d.nomeEmpresa || ''} ${d.emitente || ''}`.toLowerCase();
+      return nome.includes(alvo) || fmtValor(d.valor).toLowerCase().includes(alvo) || String(d.valor).includes(alvo);
+    });
+  })();
+
+  const vincular = async (comprovanteId, despesaId) => {
     if (!despesaId) return;
     setVinculandoId(comprovanteId);
     try {
@@ -119,7 +139,8 @@ export default function ModalConciliacao({ parcela, despesas, candidatas, catego
       const novo = res.data;
       setVinculados(prev => [...prev, novo]);
       setPendentes(prev => prev.filter(p => p.id !== comprovanteId));
-      setVincularPara(prev => ({ ...prev, [comprovanteId]: '' }));
+      setPainelComp(null);
+      setBusca('');
       await onProcessado();
     } catch (error) {
       alert(obterMensagemErro(error, "Erro ao vincular o comprovante."));
@@ -248,43 +269,72 @@ export default function ModalConciliacao({ parcela, despesas, candidatas, catego
               <div className="border border-amber-200 bg-amber-50/40 rounded-2xl divide-y divide-amber-100 overflow-hidden">
                 {pendentes.map(c => (
                   <div key={c.id} className="px-4 py-3">
-                    <div className="flex items-center justify-between gap-3 mb-2">
+                    <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-stone-800">{c.favorecido || c.nomeArquivo}</p>
                         <p className="text-xs text-stone-500">{c.documentoFavorecido || 'sem CPF/CNPJ'} · Débito em {fmtData(c.dataPagamento)} · {c.nomeArquivo}</p>
                       </div>
-                      <span className="text-sm font-bold text-stone-900 shrink-0">{fmtValor(c.valor)}</span>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-sm font-bold text-stone-900">{fmtValor(c.valor)}</span>
+                        <button
+                          onClick={() => abrirPainel(c)}
+                          className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-colors ${painelComp === c.id ? 'bg-stone-200 text-stone-700 hover:bg-stone-300' : 'bg-amber-500 text-white hover:bg-amber-600'}`}
+                        >
+                          {painelComp === c.id ? <X className="w-3.5 h-3.5" /> : <Link2 className="w-3.5 h-3.5" />}
+                          {painelComp === c.id ? 'Fechar' : 'Vincular'}
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex gap-2 flex-wrap sm:flex-nowrap">
-                      <select
-                        className="flex-1 min-w-0 px-3 py-2 border border-amber-200 bg-white rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-500/40 cursor-pointer"
-                        value={vincularPara[c.id] || ''}
-                        onChange={e => setVincularPara(prev => ({ ...prev, [c.id]: e.target.value }))}
-                      >
-                        <option value="">Selecione a parcela e a despesa...</option>
-                        {parcelasCandidatas.map(({ numero, despesas }) => (
-                          <optgroup key={numero} label={`Parcela 0${numero} — ${despesas.length} despesa(s)`}>
-                            {despesas.map(d => (
-                              <option key={d.id} value={d.id}>
-                                {dataNota(d)} · {fmtValor(d.valor)} · {d.nomeEmpresa || d.emitente || 'Despesa'}
-                              </option>
-                            ))}
-                          </optgroup>
-                        ))}
-                      </select>
-                      <button
-                        onClick={() => vincular(c.id)}
-                        disabled={!vincularPara[c.id] || vinculandoId === c.id}
-                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 text-white text-xs font-bold hover:bg-amber-600 transition-colors disabled:opacity-40"
-                      >
-                        {vinculandoId === c.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Link2 className="w-3.5 h-3.5" />}
-                        Vincular
-                      </button>
-                    </div>
-                    {candidatasOrigem.length === 0 && (
-                      <p className="text-[11px] text-amber-700 mt-2">
-                        {legado ? "Nenhuma despesa sem comprovante disponível nesta parcela." : "Nenhuma despesa sem comprovante disponível no setor."}
-                      </p>
+
+                    {painelComp === c.id && (
+                      <div className="mt-3 border border-amber-200 bg-white rounded-2xl p-3">
+                        <input
+                          autoFocus
+                          type="text"
+                          value={busca}
+                          onChange={e => setBusca(e.target.value)}
+                          placeholder="Buscar despesa por nome ou valor..."
+                          className="w-full px-3 py-2 border border-cream-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-brand-500/40"
+                        />
+                        <div className="flex gap-1.5 overflow-x-auto mt-2 pb-1">
+                          {parcelasCandidatas.map(({ numero, despesas }) => (
+                            <button
+                              key={numero}
+                              onClick={() => setParcelaSel(String(numero))}
+                              className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${String(parcelaSel) === String(numero) ? 'bg-brand-600 text-white' : 'bg-cream-100 text-stone-600 hover:bg-cream-200'}`}
+                            >
+                              Parcela 0{numero} · {despesas.length}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="mt-2 max-h-56 overflow-y-auto divide-y divide-cream-100 border border-cream-200 rounded-xl">
+                          {despesasVisiveis.length === 0 && (
+                            <p className="text-xs text-stone-400 px-3 py-4 text-center">Nenhuma despesa encontrada.</p>
+                          )}
+                          {despesasVisiveis.map(d => {
+                            const valorIgual = Number(d.valor) === Number(c.valor);
+                            return (
+                              <button
+                                key={d.id}
+                                onClick={() => vincular(c.id, d.id)}
+                                disabled={vinculandoId === c.id}
+                                className="w-full flex items-center justify-between gap-3 px-3 py-2 text-left hover:bg-amber-50 transition-colors disabled:opacity-50"
+                              >
+                                <div className="min-w-0">
+                                  <p className="text-sm text-stone-800 truncate">
+                                    {d.nomeEmpresa || d.emitente || 'Despesa'}
+                                    {valorIgual && (
+                                      <span className="ml-2 text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-full align-middle">valor igual</span>
+                                    )}
+                                  </p>
+                                  <p className="text-[11px] text-stone-500">{dataNota(d)}</p>
+                                </div>
+                                <span className="text-sm font-semibold text-stone-900 shrink-0">{fmtValor(d.valor)}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
                     )}
                   </div>
                 ))}
