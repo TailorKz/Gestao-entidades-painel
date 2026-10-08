@@ -322,13 +322,116 @@ function PainelGrafico({ grupos, ano }) {
   );
 }
 
+function ResumoGrupoPorMes({ grupos, meses }) {
+  const [tipo, setTipo] = useState('saidas');
+  const rotulo = tipo === 'entradas' ? 'Entradas' : 'Saídas';
+  const mesesArr = (meses || []).slice().sort((a, b) => a - b);
+
+  const linhas = (grupos || [])
+    .map((g) => {
+      const porMes = g.porMes || [];
+      const celulas = mesesArr.map((m) => {
+        const p = porMes.find((x) => x.mes === m);
+        return { m, entradas: Number(p?.entradas || 0), saidas: Number(p?.saidas || 0) };
+      });
+      return {
+        nome: g.grupo?.nome || 'Não classificado',
+        cor: g.grupo?.cor || '#78716C',
+        celulas,
+        total: celulas.reduce((acc, c) => acc + c[tipo], 0),
+        temMovimento: celulas.some((c) => c.entradas > 0 || c.saidas > 0),
+      };
+    })
+    .filter((l) => l.temMovimento);
+
+  const totaisPorMes = mesesArr.map((_, idx) => linhas.reduce((acc, l) => acc + l.celulas[idx][tipo], 0));
+  const totalPeriodo = linhas.reduce((acc, l) => acc + l.total, 0);
+
+  return (
+    <div className="bg-white rounded-2xl p-5 border border-brand-100 shadow-sm mt-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <div>
+          <h3 style={heading} className="text-base text-stone-800">Resumo por grupo por mês</h3>
+          <p className="text-xs text-stone-500 mt-1">Valores exatos de cada grupo nos meses selecionados.</p>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => setTipo('entradas')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors ${
+              tipo === 'entradas' ? 'bg-brand-600 text-white shadow-sm' : 'bg-cream-100 text-stone-500 hover:bg-cream-200'
+            }`}
+          >
+            Entradas
+          </button>
+          <button
+            onClick={() => setTipo('saidas')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors ${
+              tipo === 'saidas' ? 'bg-brand-600 text-white shadow-sm' : 'bg-cream-100 text-stone-500 hover:bg-cream-200'
+            }`}
+          >
+            Saídas
+          </button>
+        </div>
+      </div>
+
+      {linhas.length === 0 ? (
+        <p className="text-sm text-stone-400 py-4 text-center">
+          Nenhuma movimentação classificada nos meses selecionados.
+        </p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="border-b border-cream-200">
+                <th className="px-3 py-2.5 text-xs text-stone-500 font-semibold">Grupo</th>
+                {mesesArr.map((m) => (
+                  <th key={m} className="px-3 py-2.5 text-xs text-stone-500 font-semibold text-right">{MESES_CURTOS[m - 1]}</th>
+                ))}
+                <th className="px-3 py-2.5 text-xs text-stone-500 font-semibold text-right">Total {rotulo}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {linhas.map((l, idx) => (
+                <tr key={`${l.nome}-${idx}`} className="border-b border-cream-100 hover:bg-cream-50">
+                  <td className="px-3 py-2.5 text-sm">
+                    <span className="inline-flex items-center gap-2">
+                      <span className="inline-block w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: l.cor }} />
+                      <span className="font-semibold text-stone-700">{l.nome}</span>
+                    </span>
+                  </td>
+                  {l.celulas.map((c, i) => (
+                    <td key={i} className="px-3 py-2.5 text-sm text-stone-600 text-right">
+                      {c[tipo] !== 0 ? `R$ ${formatarMoeda(c[tipo])}` : '—'}
+                    </td>
+                  ))}
+                  <td className="px-3 py-2.5 text-sm font-bold text-stone-800 text-right">R$ {formatarMoeda(l.total)}</td>
+                </tr>
+              ))}
+              <tr className="bg-cream-50">
+                <td className="px-3 py-2.5 text-sm font-bold text-stone-800">Total</td>
+                {totaisPorMes.map((v, i) => (
+                  <td key={i} className="px-3 py-2.5 text-sm font-bold text-stone-800 text-right">
+                    {v !== 0 ? `R$ ${formatarMoeda(v)}` : '—'}
+                  </td>
+                ))}
+                <td className="px-3 py-2.5 text-sm font-bold text-brand-700 text-right">R$ {formatarMoeda(totalPeriodo)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function PrestacaoBancos() {
   const [contas, setContas] = useState([]);
   const [tela, setTela] = useState('home');
   const [contaAtiva, setContaAtiva] = useState(null);
 
+  const mesAtual = new Date().getMonth() + 1;
   const [ano, setAno] = useState(ANO_ATUAL);
-  const [mes, setMes] = useState(new Date().getMonth() + 1);
+  const [meses, setMeses] = useState(() => new Set([mesAtual]));
   const [transacoes, setTransacoes] = useState([]);
   const [relatorio, setRelatorio] = useState(null);
 
@@ -391,16 +494,10 @@ export default function PrestacaoBancos() {
   useEffect(() => {
     if (tela === 'conta' && contaAtiva) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      carregarTransacoes(contaAtiva.id, mes, ano);
-    }
-  }, [tela, contaAtiva, mes, ano, carregarTransacoes]);
-
-  useEffect(() => {
-    if (tela === 'conta' && contaAtiva && mes === 0) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+      carregarTransacoes(contaAtiva.id, 0, ano);
       carregarRelatorio(contaAtiva.id, ano);
     }
-  }, [tela, contaAtiva, mes, ano, carregarRelatorio]);
+  }, [tela, contaAtiva, ano, carregarTransacoes, carregarRelatorio]);
 
   // Feedback temporário
   useEffect(() => {
@@ -411,7 +508,7 @@ export default function PrestacaoBancos() {
 
   const abrirConta = (conta) => {
     setContaAtiva(conta);
-    setMes(new Date().getMonth() + 1);
+    setMeses(new Set([new Date().getMonth() + 1]));
     setMensagem('');
     setModoClassificar(false);
     setSelecionadas(new Set());
@@ -430,8 +527,27 @@ export default function PrestacaoBancos() {
     setSelecionadas(new Set());
   };
 
-  const mudarMes = (n) => {
-    setMes(n);
+  const alternarMes = (n) => {
+    setMeses((atual) => {
+      const nova = new Set(atual);
+      if (nova.has(n)) {
+        if (nova.size === 1) return nova;
+        nova.delete(n);
+      } else {
+        nova.add(n);
+      }
+      return nova;
+    });
+    setSelecionadas(new Set());
+  };
+
+  const selecionarAnoCompleto = () => {
+    setMeses(new Set(MESES.map((m) => m.num)));
+    setSelecionadas(new Set());
+  };
+
+  const selecionarSomenteMes = (n) => {
+    setMeses(new Set([n]));
     setSelecionadas(new Set());
   };
 
@@ -448,7 +564,8 @@ export default function PrestacaoBancos() {
       setMensagem('✅ ' + (resultado.mensagem || 'Extrato importado com sucesso!'));
       setArquivo(null);
       if (inputArquivo.current) inputArquivo.current.value = '';
-      await carregarTransacoes(contaAtiva.id, mes, ano);
+      await carregarTransacoes(contaAtiva.id, 0, ano);
+      await carregarRelatorio(contaAtiva.id, ano);
     } catch (error) {
       setMensagem('❌ ' + obterMensagemErro(error, 'Erro ao importar o arquivo.'));
     } finally {
@@ -463,21 +580,27 @@ export default function PrestacaoBancos() {
       return;
     }
     const valor = parseFloat(saldoInicial.replace('.', '').replace(',', '.'));
-    if (Number.isNaN(valor) || valor <= 0) {
-      setMensagem('Valor inválido. Use o formato 5000,00.');
+    if (Number.isNaN(valor)) {
+      setMensagem('Valor inválido. Use o formato 5000,00 (ou -5000,00 se a conta estiver negativa).');
+      return;
+    }
+    const descricaoSaldo = `Saldo Inicial em Caixa - ${ano}`;
+    if (transacoes.some((t) => t.descricao === descricaoSaldo)) {
+      setMensagem(`⚠️ Já existe o lançamento "${descricaoSaldo}". Para corrigir, exclua-o na lista e adicione novamente.`);
       return;
     }
     try {
       setSalvando(true);
       await adicionarTransacaoManual(contaAtiva.id, {
         data: `${ano}-01-01`,
-        descricao: `Saldo Inicial em Caixa - ${ano}`,
+        descricao: descricaoSaldo,
         tipo: 'ENTRADA',
         valor,
       });
       setSaldoInicial('');
       setMensagem('✅ Saldo inicial adicionado.');
-      await carregarTransacoes(contaAtiva.id, mes, ano);
+      await carregarTransacoes(contaAtiva.id, 0, ano);
+      await carregarRelatorio(contaAtiva.id, ano);
     } catch (error) {
       setMensagem('❌ ' + obterMensagemErro(error, 'Erro ao adicionar saldo inicial.'));
     } finally {
@@ -494,21 +617,23 @@ export default function PrestacaoBancos() {
         nova.delete(id);
         return nova;
       });
-      await carregarTransacoes(contaAtiva.id, mes, ano);
+      await carregarTransacoes(contaAtiva.id, 0, ano);
     } catch (error) {
       setMensagem('❌ ' + obterMensagemErro(error, 'Erro ao excluir transação.'));
     }
   };
 
   const limparMesCompleto = async () => {
-    const nomeMes = MESES.find((m) => m.num === mes)?.nome;
+    if (listaMeses.length !== 1) return;
+    const mesUnico = listaMeses[0];
+    const nomeMes = MESES.find((m) => m.num === mesUnico)?.nome;
     if (!window.confirm(`⚠️ Isso vai apagar TODAS as transações de ${nomeMes}/${ano}. Deseja continuar?`)) return;
     try {
-      await limparMesBancario(contaAtiva.id, mes, ano);
+      await limparMesBancario(contaAtiva.id, mesUnico, ano);
       setMensagem('✅ Mês apagado.');
       setSelecionadas(new Set());
-      await carregarTransacoes(contaAtiva.id, mes, ano);
-      if (mes === 0) await carregarRelatorio(contaAtiva.id, ano);
+      await carregarTransacoes(contaAtiva.id, 0, ano);
+      await carregarRelatorio(contaAtiva.id, ano);
     } catch (error) {
       setMensagem('❌ ' + obterMensagemErro(error, 'Erro ao limpar o mês.'));
     }
@@ -586,8 +711,8 @@ export default function PrestacaoBancos() {
       await excluirGrupo(contaAtiva.id, grupo.id);
       setMensagem('✅ Grupo excluído.');
       await carregarGrupos(contaAtiva.id);
-      await carregarTransacoes(contaAtiva.id, mes, ano);
-      if (mes === 0) await carregarRelatorio(contaAtiva.id, ano);
+      await carregarTransacoes(contaAtiva.id, 0, ano);
+      await carregarRelatorio(contaAtiva.id, ano);
     } catch (error) {
       setMensagem('❌ ' + obterMensagemErro(error, 'Erro ao excluir o grupo.'));
     }
@@ -629,8 +754,8 @@ export default function PrestacaoBancos() {
       setSelecionadas(new Set());
       setModoClassificar(false);
       setGrupoClassificar('');
-      await carregarTransacoes(contaAtiva.id, mes, ano);
-      if (mes === 0) await carregarRelatorio(contaAtiva.id, ano);
+      await carregarTransacoes(contaAtiva.id, 0, ano);
+      await carregarRelatorio(contaAtiva.id, ano);
     } catch (error) {
       setSalvando(false);
       setMensagem('❌ ' + obterMensagemErro(error, 'Erro ao classificar os lançamentos.'));
@@ -653,14 +778,32 @@ export default function PrestacaoBancos() {
   };
 
   // ----- Cálculos -----
-  const transacoesDoMes = mes === 0 ? transacoes : transacoes.filter((t) => Number(t.data.slice(5, 7)) === mes);
+  const listaMeses = Array.from(meses).sort((a, b) => a - b);
+  const ehAnoCompleto = listaMeses.length === 12;
+  const nomeMes = (n) => MESES.find((m) => m.num === n)?.nome || '';
+  const rotuloPeriodo = (arr) => {
+    if (arr.length === 12) return 'Ano';
+    if (arr.length === 1) return nomeMes(arr[0]);
+    const contiguo = arr.every((m, i) => i === 0 || m === arr[i - 1] + 1);
+    if (contiguo) return `${nomeMes(arr[0])} a ${nomeMes(arr[arr.length - 1])}`;
+    return arr.map(nomeMes).join(' e ');
+  };
+  const periodo = rotuloPeriodo(listaMeses);
+  const mesDoMes = (t) => Number(t.data.slice(5, 7));
+  const transacoesDoMes = transacoes.filter((t) => meses.has(mesDoMes(t)));
   const totalEntradas = transacoesDoMes.filter((t) => t.tipo === 'ENTRADA').reduce((acc, t) => acc + Number(t.valor), 0);
   const totalSaidas = transacoesDoMes.filter((t) => t.tipo === 'SAIDA').reduce((acc, t) => acc + Number(t.valor), 0);
   const balanco = totalEntradas - totalSaidas;
-  const saldoFinal = transacoes.filter((t) => t.tipo === 'ENTRADA').reduce((acc, t) => acc + Number(t.valor), 0)
-    - transacoes.filter((t) => t.tipo === 'SAIDA').reduce((acc, t) => acc + Number(t.valor), 0);
-
-  const periodo = mes === 0 ? 'Ano' : MESES.find((m) => m.num === mes)?.nome;
+  const ultimoMes = listaMeses.length > 0 ? Math.max(...listaMeses) : 0;
+  const transacoesAteFinal = transacoes.filter((t) => mesDoMes(t) <= ultimoMes);
+  const saldoFinal = transacoesAteFinal.filter((t) => t.tipo === 'ENTRADA').reduce((acc, t) => acc + Number(t.valor), 0)
+    - transacoesAteFinal.filter((t) => t.tipo === 'SAIDA').reduce((acc, t) => acc + Number(t.valor), 0);
+  const balancoPorMes = listaMeses.map((m) => {
+    const doMes = transacoes.filter((t) => mesDoMes(t) === m);
+    const entradasM = doMes.filter((t) => t.tipo === 'ENTRADA').reduce((acc, t) => acc + Number(t.valor), 0);
+    const saidasM = doMes.filter((t) => t.tipo === 'SAIDA').reduce((acc, t) => acc + Number(t.valor), 0);
+    return { m, nome: nomeMes(m), entradas: entradasM, saidas: saidasM, saldo: entradasM - saidasM, lancamentos: doMes.length };
+  });
 
   const salvar = salvando;
 
@@ -774,28 +917,43 @@ export default function PrestacaoBancos() {
             </div>
           </div>
 
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 mb-4">
-            {MESES.map((m) => (
+          <div className="mb-6">
+            <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+              {MESES.map((m) => {
+                const ativo = meses.has(m.num);
+                return (
+                  <button
+                    key={m.num}
+                    onClick={() => alternarMes(m.num)}
+                    className={`px-2 py-2.5 rounded-lg text-xs sm:text-sm font-bold transition-colors ${
+                      ativo ? 'bg-stone-800 text-white shadow-sm' : 'bg-white text-stone-500 border border-cream-200 hover:bg-cream-100'
+                    }`}
+                  >
+                    {m.nome}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex flex-wrap items-center gap-2 mt-3">
               <button
-                key={m.num}
-                onClick={() => mudarMes(m.num)}
-                className={`px-2 py-2.5 rounded-lg text-xs sm:text-sm font-bold transition-colors ${
-                  mes === m.num ? 'bg-stone-800 text-white shadow-sm' : 'bg-white text-stone-500 border border-cream-200 hover:bg-cream-100'
-                }`}
+                onClick={selecionarAnoCompleto}
+                disabled={ehAnoCompleto}
+                className="px-4 py-2 rounded-lg text-xs font-bold bg-brand-600 text-white hover:bg-brand-700 transition-colors disabled:opacity-50 shadow-sm"
               >
-                {m.nome}
+                Ano Completo
               </button>
-            ))}
+              <button
+                onClick={() => selecionarSomenteMes(mesAtual)}
+                disabled={listaMeses.length === 1 && meses.has(mesAtual)}
+                className="px-4 py-2 rounded-lg text-xs font-bold bg-white text-stone-500 border border-cream-200 hover:bg-cream-100 transition-colors disabled:opacity-50"
+              >
+                Só o mês atual ({nomeMes(mesAtual)})
+              </button>
+              <span className="text-xs font-semibold text-stone-500">
+                {listaMeses.length} de 12 meses selecionados
+              </span>
+            </div>
           </div>
-
-          <button
-            onClick={() => mudarMes(0)}
-            className={`w-full px-4 py-3 rounded-xl font-bold text-sm mb-6 transition-colors ${
-              mes === 0 ? 'bg-brand-600 text-white shadow-sm' : 'bg-white text-stone-500 border border-cream-200 hover:bg-cream-100'
-            }`}
-          >
-            📊 Visualizar Balanço {ano} Completo
-          </button>
 
           <div className="flex flex-wrap items-center gap-2 mb-6">
             <button
@@ -816,19 +974,17 @@ export default function PrestacaoBancos() {
               <Layers className="w-4 h-4 text-brand-700" />
               {modoClassificar ? 'Sair do modo classificação' : 'Classificar lançamentos'}
             </button>
-            {mes === 0 && (
-              <button
-                onClick={exportarPdf}
-                disabled={exportando || salvar}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700 transition-colors shadow-sm disabled:opacity-60"
-              >
-                {exportando ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
-                Exportar PDF
-              </button>
-            )}
+            <button
+              onClick={exportarPdf}
+              disabled={exportando || salvar}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-600 text-white text-sm font-semibold hover:bg-brand-700 transition-colors shadow-sm disabled:opacity-60"
+            >
+              {exportando ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
+              Exportar PDF
+            </button>
           </div>
 
-          {mes === 0 && relatorio && (
+          {ehAnoCompleto && relatorio && (
             <PainelGrafico grupos={montarListaGrupos(grupos, relatorio.grupos)} ano={ano} />
           )}
 
@@ -856,6 +1012,52 @@ export default function PrestacaoBancos() {
                   </p>
                 </div>
               </div>
+
+              <div className="bg-white rounded-2xl p-5 border border-brand-100 shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+                  <h3 style={heading} className="text-base text-stone-800">Balanço por mês</h3>
+                  <span className="text-xs font-semibold text-stone-500">Entrada × Saída × Saldo de cada mês selecionado</span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="border-b border-cream-200">
+                        <th className="px-3 py-2.5 text-xs text-stone-500 font-semibold">Mês</th>
+                        <th className="px-3 py-2.5 text-xs text-stone-500 font-semibold text-right">Entradas</th>
+                        <th className="px-3 py-2.5 text-xs text-stone-500 font-semibold text-right">Saídas</th>
+                        <th className="px-3 py-2.5 text-xs text-stone-500 font-semibold text-right">Saldo</th>
+                        <th className="px-3 py-2.5 text-xs text-stone-500 font-semibold text-center">Lanç.</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {balancoPorMes.map((b) => (
+                        <tr key={b.m} className="border-b border-cream-100 hover:bg-cream-50">
+                          <td className="px-3 py-2.5 text-sm font-semibold text-stone-700">{b.nome}</td>
+                          <td className="px-3 py-2.5 text-sm font-bold text-emerald-600 text-right">R$ {formatarMoeda(b.entradas)}</td>
+                          <td className="px-3 py-2.5 text-sm font-bold text-red-600 text-right">R$ {formatarMoeda(b.saidas)}</td>
+                          <td className={`px-3 py-2.5 text-sm font-bold text-right ${b.saldo >= 0 ? 'text-stone-800' : 'text-red-600'}`}>
+                            R$ {formatarMoeda(b.saldo)}
+                          </td>
+                          <td className="px-3 py-2.5 text-sm text-stone-500 text-center">{b.lancamentos}</td>
+                        </tr>
+                      ))}
+                      <tr className="bg-cream-50">
+                        <td className="px-3 py-2.5 text-sm font-bold text-stone-800">Total do período</td>
+                        <td className="px-3 py-2.5 text-sm font-bold text-emerald-600 text-right">R$ {formatarMoeda(totalEntradas)}</td>
+                        <td className="px-3 py-2.5 text-sm font-bold text-red-600 text-right">R$ {formatarMoeda(totalSaidas)}</td>
+                        <td className={`px-3 py-2.5 text-sm font-bold text-right ${balanco >= 0 ? 'text-stone-800' : 'text-red-600'}`}>
+                          R$ {formatarMoeda(balanco)}
+                        </td>
+                        <td className="px-3 py-2.5 text-sm font-bold text-stone-500 text-center">{transacoesDoMes.length}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {relatorio && (
+                <ResumoGrupoPorMes grupos={montarListaGrupos(grupos, relatorio.grupos)} meses={listaMeses} />
+              )}
 
               {modoClassificar && selecionadas.size > 0 && (
                 <div className="bg-white rounded-2xl p-4 border border-brand-200 shadow-sm mb-4 animate-in fade-in">
@@ -921,7 +1123,7 @@ export default function PrestacaoBancos() {
                   <h3 style={heading} className="text-base text-stone-800">
                     Movimentações de {periodo}
                   </h3>
-                  {mes !== 0 && transacoesDoMes.length > 0 && (
+                  {listaMeses.length === 1 && transacoesDoMes.length > 0 && (
                     <button
                       onClick={limparMesCompleto}
                       className="px-3 py-1.5 rounded-lg text-xs font-bold text-red-600 border border-red-500 hover:bg-red-50 transition-colors"
@@ -1007,7 +1209,7 @@ export default function PrestacaoBancos() {
             </div>
 
             <div className="lg:w-80 shrink-0">
-              {mes !== 0 ? (
+              {listaMeses.length === 1 ? (
                 <div className="bg-stone-800 rounded-2xl p-5 text-white sticky top-4">
                   <h3 style={heading} className="text-base mb-1.5">Importar Extrato</h3>
                   <p className="text-xs text-stone-400 mb-4">
