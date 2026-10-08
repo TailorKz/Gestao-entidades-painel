@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { api, obterMensagemErro } from '../services/api';
-import { UploadCloud, Loader2, Check, X, FileText, AlertTriangle, Link2, Landmark } from 'lucide-react';
+import { abrirArquivoEmNovaAba } from '../services/arquivos';
+import { UploadCloud, Loader2, Check, X, FileText, AlertTriangle, Link2, Landmark, Unlink, Eye, CalendarDays } from 'lucide-react';
 
 const heading = { fontFamily: "'Varela Round', sans-serif" };
 
@@ -149,6 +150,30 @@ export default function ModalConciliacao({ parcela, despesas, candidatas, catego
     }
   };
 
+  const verPdf = async (comp) => {
+    if (!comp.chaveS3) return alert("Arquivo indisponível para este comprovante.");
+    try {
+      await abrirArquivoEmNovaAba(comp.chaveS3);
+    } catch (error) {
+      alert(error.message || "Não foi possível abrir o comprovante.");
+    }
+  };
+
+  const desvincular = async (comprovanteId) => {
+    if (!window.confirm("Desvincular este comprovante da despesa? Ele permanece salvo e volta para os pendentes.")) return;
+    setVinculandoId(comprovanteId);
+    try {
+      const res = await api.post(`/despesas/conciliacao/comprovantes/${comprovanteId}/desvincular`);
+      setVinculados(prev => prev.filter(c => c.id !== comprovanteId));
+      if (res.data) setPendentes(prev => [res.data, ...prev]);
+      await onProcessado();
+    } catch (error) {
+      alert(obterMensagemErro(error, "Erro ao desvincular o comprovante."));
+    } finally {
+      setVinculandoId(null);
+    }
+  };
+
   const titulo = legado
     ? "Conciliar Comprovantes BB"
     : `Importar Comprovantes BB — ${String(mes).padStart(2, '0')}/${ano}`;
@@ -241,18 +266,43 @@ export default function ModalConciliacao({ parcela, despesas, candidatas, catego
               </h4>
               <div className="border border-emerald-200 bg-emerald-50/60 rounded-2xl divide-y divide-emerald-100 overflow-hidden">
                 {vinculados.map(c => (
-                  <div key={c.id} className="px-4 py-3 flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-emerald-900">{c.favorecido || c.nomeArquivo}</p>
-                      <p className="text-xs text-emerald-700">→ Vinculado à despesa: {c.despesaDescricao || '—'}
-                        {c.numeroParcela ? <span> · Parcela 0{c.numeroParcela}</span> : null} · {fmtData(c.dataPagamento)}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-sm font-bold text-emerald-800">{fmtValor(c.valor)}</span>
-                      <span className="inline-flex items-center gap-1 bg-emerald-200 text-emerald-900 px-2 py-1 rounded-full text-[10px] font-bold uppercase">
+                  <div key={c.id} className="px-4 py-3 space-y-2">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-emerald-900">{c.favorecido || c.nomeArquivo}</p>
+                        <p className="text-xs text-emerald-700 inline-flex items-center gap-1 flex-wrap">
+                          <CalendarDays className="w-3 h-3" />
+                          Comprovante <strong>{fmtValor(c.valor)}</strong> · débito em {fmtData(c.dataPagamento)}
+                        </p>
+                        <p className="text-xs text-stone-500 mt-0.5 flex items-center gap-1 flex-wrap">
+                          <Link2 className="w-3 h-3 shrink-0" />
+                          Nota: <strong className="text-stone-700">{c.despesaDescricao || '—'}</strong>
+                          <span>· emitida {fmtData(c.despesaDataEmissao)}</span>
+                          <span>· {fmtValor(c.despesaValor ?? c.valor)}</span>
+                          {c.numeroParcela ? <span>· Parcela 0{c.numeroParcela}</span> : null}
+                        </p>
+                      </div>
+                      <span className="inline-flex items-center gap-1 bg-emerald-200 text-emerald-900 px-2 py-1 rounded-full text-[10px] font-bold uppercase shrink-0">
                         <Check className="w-3 h-3" /> OK
                       </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => verPdf(c)}
+                        disabled={!c.chaveS3}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white border border-emerald-300 text-emerald-800 text-[11px] font-bold hover:bg-emerald-100 transition-colors disabled:opacity-40"
+                        title="Abrir comprovante"
+                      >
+                        <Eye className="w-3.5 h-3.5" /> Ver PDF
+                      </button>
+                      <button
+                        onClick={() => desvincular(c.id)}
+                        disabled={vinculandoId === c.id}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white border border-stone-300 text-stone-600 text-[11px] font-bold hover:bg-stone-100 transition-colors disabled:opacity-40"
+                        title="Desvincular (o comprovante permanece salvo)"
+                      >
+                        {vinculandoId === c.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Unlink className="w-3.5 h-3.5" />} Desvincular
+                      </button>
                     </div>
                   </div>
                 ))}

@@ -2,9 +2,10 @@ import { useState, useEffect, Fragment } from 'react';
 import { api, obterMensagemErro } from '../services/api';
 import { abrirArquivoEmNovaAba } from '../services/arquivos';
 import { categoriaQueryParam, getSetorAtivo, selecionarParcela, salvarParcelaLembrada } from '../services/setor';
-import { Calculator, Activity, Trash2, Check, Loader2, Plus, Edit2, X, CalendarDays, FileDown, Landmark, Minus, Tag, CheckCircle2, Clock, Eye, ArrowUp, ArrowDown } from 'lucide-react';
+import { Calculator, Activity, Trash2, Check, Loader2, Plus, Edit2, X, CalendarDays, FileDown, Landmark, Tag, CheckCircle2, Clock, Eye, ArrowUp, ArrowDown } from 'lucide-react';
 import EditarDespesaInline from '../components/EditarDespesaInline';
 import ModalConciliacao from '../components/ModalConciliacao';
+import ModalComprovanteDespesa from '../components/ModalComprovanteDespesa';
 import SelectResumido from '../components/SelectResumido';
 import { exportarPdfProjecao, exportarPdfPrestacoes } from '../services/exportarPdf';
 import { rotuloMeses } from '../services/meses';
@@ -31,6 +32,7 @@ export default function PrestacaoGestor() {
     const [dadosEstEdicao, setDadosEstEdicao] = useState({ descricao: '', valor: '' });
     const [despesaEmEdicao, setDespesaEmEdicao] = useState(null);
     const [modalConciliacao, setModalConciliacao] = useState(false);
+    const [comprovanteDespesa, setComprovanteDespesa] = useState(null);
 
     // Estados do Modal
     const [modalParcela, setModalParcela] = useState({ aberto: false, modo: 'NOVA' });
@@ -509,13 +511,21 @@ export default function PrestacaoGestor() {
                                             <td className="px-6 py-4">{renderStatusReal(despesa.status)}</td>
                                             <td className="px-6 py-4 text-center">
                                                 {despesa.temComprovante ? (
-                                                    <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase">
+                                                    <button
+                                                        onClick={() => setComprovanteDespesa(despesa)}
+                                                        className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase hover:bg-emerald-200 transition-colors"
+                                                        title="Ver, abrir ou desvincular o comprovante"
+                                                    >
                                                         <Check className="w-3 h-3" /> Comp.
-                                                    </span>
+                                                    </button>
                                                 ) : (
-                                                    <span className="inline-flex items-center justify-center w-7 h-7 rounded-full border border-dashed border-stone-300 text-stone-300" title="Sem comprovante vinculado">
-                                                        <Minus className="w-3.5 h-3.5" />
-                                                    </span>
+                                                    <button
+                                                        onClick={() => setComprovanteDespesa(despesa)}
+                                                        className="inline-flex items-center justify-center w-7 h-7 rounded-full border border-dashed border-stone-300 text-stone-400 hover:border-brand-400 hover:text-brand-600 hover:bg-brand-50 transition-colors"
+                                                        title="Vincular um comprovante a esta despesa"
+                                                    >
+                                                        <Plus className="w-3.5 h-3.5" />
+                                                    </button>
                                                 )}
                                             </td>
                                             <td className="px-6 py-4 text-right space-x-1">
@@ -629,6 +639,16 @@ export default function PrestacaoGestor() {
                     despesas={despesas}
                     onFechar={() => setModalConciliacao(false)}
                     onProcessado={() => carregarGastosDaParcela(parcelaSelecionada.id)}
+                />
+            )}
+
+            {/* MODAL: VINCULAR/DESVINCULAR COMPROVANTE DA DESPESA */}
+            {comprovanteDespesa && parcelaSelecionada && (
+                <ModalComprovanteDespesa
+                    despesa={comprovanteDespesa}
+                    categoria={parcelaSelecionada.categoria}
+                    onFechar={() => setComprovanteDespesa(null)}
+                    onSalvo={() => carregarGastosDaParcela(parcelaSelecionada.id)}
                 />
             )}
 
