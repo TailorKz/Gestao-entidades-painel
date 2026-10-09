@@ -10,6 +10,7 @@ import PainelGestor from './pages/PainelGestor';
 import LancarDespesa from './pages/LancarDespesa';
 import EmprestimosEventos from './pages/EmprestimosEventos';
 import Ginasios from './pages/Ginasios';
+import GradeGinasios from './pages/GradeGinasios';
 import AcoesGerr from './pages/AcoesGerr';
 import ChecklistPagamentos from './pages/ChecklistPagamentos';
 import LayoutGestor from './components/LayoutGestor';
@@ -31,6 +32,7 @@ export default function App() {
                     <Route path="/lancar-despesa" element={<LancarDespesa />} />
                     <Route path="/emprestimos-eventos" element={<EmprestimosEventos />} />
                     <Route path="/ginasios" element={<Ginasios />} />
+                    <Route path="/grade-ginasios" element={<GradeGinasios />} />
                     <Route path="/acoes-gerr" element={<AcoesGerr />} />
                     <Route path="/painel" element={<PainelGestor />} />
                     <Route path="/checklist-pagamentos" element={<ChecklistPagamentos />} />

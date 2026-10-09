@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, LogOut, Wallet, Activity, Music, Send, ArrowLeftRight, Bell, Dumbbell, Menu, X, Landmark, Banknote, Settings, ClipboardCheck } from 'lucide-react';
+import { LayoutDashboard, Users, LogOut, Wallet, Activity, Music, Send, ArrowLeftRight, Bell, Dumbbell, Menu, X, Landmark, Banknote, Settings, ClipboardCheck, CalendarClock } from 'lucide-react';
 import { SETORES, getSetorAtivo, setSetorAtivo } from '../services/setor';
 import { api } from '../services/api';
 
@@ -93,6 +93,7 @@ export default function LayoutGestor() {
     { path: '/comprovantes', label: 'Comprovantes', icon: Landmark },
     { path: '/emprestimos-eventos', label: 'Empréstimos e Eventos', icon: ArrowLeftRight },
     { path: '/ginasios', label: 'Controle de Ginásios', icon: Dumbbell },
+    { path: '/grade-ginasios', label: 'Grade de Horários', icon: CalendarClock },
     { path: '/prestacao-bancos', label: 'Prestação Bancos', icon: Banknote },
     ...(ehSuperAdmin ? [{ path: '/acoes-gerr', label: 'Ações GERR', icon: Settings }] : []),
   ];
