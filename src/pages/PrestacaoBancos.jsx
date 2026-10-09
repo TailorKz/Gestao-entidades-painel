@@ -10,6 +10,7 @@ import {
   Loader2,
   Pencil,
   Plus,
+  Search,
   Tags,
   Trash2,
   Upload,
@@ -447,10 +448,13 @@ export default function PrestacaoBancos() {
   const [selecionadas, setSelecionadas] = useState(() => new Set());
   const [grupoClassificar, setGrupoClassificar] = useState('');
   const [exportando, setExportando] = useState(false);
+  const [mesApagar, setMesApagar] = useState('');
+  const [busca, setBusca] = useState('');
 
   const [modalConta, setModalConta] = useState({ aberto: false, modo: 'NOVA', id: null, banco: '', finalidade: '' });
   const [salvando, setSalvando] = useState(false);
   const inputArquivo = useRef(null);
+  const ultimoCliqueRef = useRef(null);
 
   const carregarContas = useCallback(async () => {
     try {
@@ -627,19 +631,23 @@ export default function PrestacaoBancos() {
     }
   };
 
-  const limparMesCompleto = async () => {
-    if (listaMeses.length !== 1) return;
-    const mesUnico = listaMeses[0];
-    const nomeMes = MESES.find((m) => m.num === mesUnico)?.nome;
+  const limparMesEscolhido = async () => {
+    const m = Number(mesApagar);
+    if (!m) return;
+    const nomeMes = MESES.find((x) => x.num === m)?.nome || '';
     if (!window.confirm(`⚠️ Isso vai apagar TODAS as transações de ${nomeMes}/${ano}. Deseja continuar?`)) return;
     try {
-      await limparMesBancario(contaAtiva.id, mesUnico, ano);
-      setMensagem('✅ Mês apagado.');
+      setSalvando(true);
+      await limparMesBancario(contaAtiva.id, m, ano);
+      setMensagem('✅ Extrato do mês apagado.');
       setSelecionadas(new Set());
+      setMesApagar('');
       await carregarTransacoes(contaAtiva.id, 0, ano);
       await carregarRelatorio(contaAtiva.id, ano);
     } catch (error) {
       setMensagem('❌ ' + obterMensagemErro(error, 'Erro ao limpar o mês.'));
+    } finally {
+      setSalvando(false);
     }
   };
 
@@ -723,18 +731,34 @@ export default function PrestacaoBancos() {
   };
 
   // ----- Classificação em lote -----
-  const alternarSelecao = (id) => {
+  const alternarSelecao = (id, shift = false) => {
     setSelecionadas((atual) => {
       const nova = new Set(atual);
+      if (shift && ultimoCliqueRef.current && ultimoCliqueRef.current !== id) {
+        const ids = transacoesVisiveis.map((t) => t.id);
+        const a = ids.indexOf(ultimoCliqueRef.current);
+        const b = ids.indexOf(id);
+        if (a !== -1 && b !== -1) {
+          const [ini, fim] = a < b ? [a, b] : [b, a];
+          const marcar = !atual.has(id);
+          for (let i = ini; i <= fim; i += 1) {
+            if (marcar) nova.add(ids[i]);
+            else nova.delete(ids[i]);
+          }
+          ultimoCliqueRef.current = id;
+          return nova;
+        }
+      }
       if (nova.has(id)) nova.delete(id);
       else nova.add(id);
+      ultimoCliqueRef.current = id;
       return nova;
     });
   };
 
   const alternarTodasVisiveis = () => {
     setSelecionadas((atual) => {
-      const visiveis = transacoesDoMes.map((t) => t.id);
+      const visiveis = transacoesVisiveis.map((t) => t.id);
       const todasMarcadas = visiveis.length > 0 && visiveis.every((id) => atual.has(id));
       const nova = new Set(atual);
       if (todasMarcadas) visiveis.forEach((id) => nova.delete(id));
@@ -795,6 +819,10 @@ export default function PrestacaoBancos() {
   const periodo = rotuloPeriodo(listaMeses);
   const mesDoMes = (t) => Number(t.data.slice(5, 7));
   const transacoesDoMes = transacoes.filter((t) => meses.has(mesDoMes(t)));
+  const termoBusca = busca.trim().toLowerCase();
+  const transacoesVisiveis = termoBusca
+    ? transacoesDoMes.filter((t) => (t.descricao || '').toLowerCase().includes(termoBusca))
+    : transacoesDoMes;
   const totalEntradas = transacoesDoMes.filter((t) => t.tipo === 'ENTRADA').reduce((acc, t) => acc + Number(t.valor), 0);
   const totalSaidas = transacoesDoMes.filter((t) => t.tipo === 'SAIDA').reduce((acc, t) => acc + Number(t.valor), 0);
   const balanco = totalEntradas - totalSaidas;
@@ -810,6 +838,7 @@ export default function PrestacaoBancos() {
   });
 
   const salvar = salvando;
+  const mesesComDados = [...new Set(transacoes.map((t) => mesDoMes(t)))].sort((a, b) => a - b);
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
@@ -1081,6 +1110,7 @@ export default function PrestacaoBancos() {
               onClick={() => {
                 setModoClassificar((v) => !v);
                 setSelecionadas(new Set());
+                ultimoCliqueRef.current = null;
               }}
               className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors shadow-sm ${
                 modoClassificar ? 'bg-stone-800 text-white' : 'bg-white text-stone-700 border border-cream-200 hover:bg-cream-100'
@@ -1172,7 +1202,10 @@ export default function PrestacaoBancos() {
                       </>
                     )}
                     <button
-                      onClick={() => setSelecionadas(new Set())}
+                      onClick={() => {
+                        setSelecionadas(new Set());
+                        ultimoCliqueRef.current = null;
+                      }}
                       className="px-3 py-2 rounded-lg text-xs font-semibold text-stone-400 hover:text-stone-700 transition-colors"
                     >
                       Limpar
@@ -1182,17 +1215,60 @@ export default function PrestacaoBancos() {
               )}
 
               <div className="bg-white rounded-2xl p-5 border border-cream-200 shadow-sm">
-                <div className="flex items-center justify-between mb-4">
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                   <h3 style={heading} className="text-base text-stone-800">
                     Movimentações de {periodo}
                   </h3>
-                  {listaMeses.length === 1 && transacoesDoMes.length > 0 && (
-                    <button
-                      onClick={limparMesCompleto}
-                      className="px-3 py-1.5 rounded-lg text-xs font-bold text-red-600 border border-red-500 hover:bg-red-50 transition-colors"
-                    >
-                      ⚠️ Apagar Tudo de {periodo}
-                    </button>
+                  {mesesComDados.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={mesApagar}
+                        onChange={(e) => setMesApagar(e.target.value)}
+                        className="px-3 py-1.5 rounded-lg border border-cream-200 bg-white text-xs font-semibold text-stone-700"
+                        title="Escolha o mês cujo extrato (OFX) deseja apagar"
+                      >
+                        <option value="">Excluir extrato de…</option>
+                        {mesesComDados.map((m) => (
+                          <option key={m} value={m}>
+                            {nomeMes(m)}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        onClick={limparMesEscolhido}
+                        disabled={!mesApagar || salvar}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-red-600 border border-red-500 hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" /> Excluir mês
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3 mb-4">
+                  <div className="relative flex-1 min-w-[200px]">
+                    <Search className="w-4 h-4 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      value={busca}
+                      onChange={(e) => setBusca(e.target.value)}
+                      placeholder="Buscar por descrição…"
+                      className="w-full pl-9 pr-9 py-2 rounded-lg border border-cream-200 bg-white text-sm text-stone-700 focus:outline-none focus:ring-2 focus:ring-brand-500/40 focus:border-brand-400"
+                    />
+                    {busca && (
+                      <button
+                        onClick={() => setBusca('')}
+                        title="Limpar busca"
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-stone-400 hover:text-stone-700 transition-colors"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                  {modoClassificar && (
+                    <span className="text-xs text-stone-500">
+                      Clique no primeiro, segure <kbd className="px-1.5 py-0.5 rounded border border-stone-300 bg-stone-100 font-sans text-[11px]">Shift</kbd> e clique no último para selecionar um intervalo.
+                    </span>
                   )}
                 </div>
 
@@ -1204,8 +1280,9 @@ export default function PrestacaoBancos() {
                           <th className="px-3 py-2.5 w-8">
                             <input
                               type="checkbox"
-                              checked={transacoesDoMes.length > 0 && transacoesDoMes.every((t) => selecionadas.has(t.id))}
+                              checked={transacoesVisiveis.length > 0 && transacoesVisiveis.every((t) => selecionadas.has(t.id))}
                               onChange={alternarTodasVisiveis}
+                              title="Selecionar todas as movimentações listadas"
                               className="w-4 h-4 accent-brand-600"
                             />
                           </th>
@@ -1217,16 +1294,25 @@ export default function PrestacaoBancos() {
                       </tr>
                     </thead>
                     <tbody>
-                      {transacoesDoMes.length > 0 ? (
-                        transacoesDoMes.map((t) => (
-                          <tr key={t.id} className={`border-b border-cream-100 hover:bg-cream-50 ${selecionadas.has(t.id) ? 'bg-brand-50/40' : ''}`}>
+                      {transacoesVisiveis.length > 0 ? (
+                        transacoesVisiveis.map((t) => (
+                          <tr
+                            key={t.id}
+                            onClick={(e) => {
+                              if (!modoClassificar) return;
+                              if (e.target.closest('button')) return;
+                              alternarSelecao(t.id, e.shiftKey);
+                            }}
+                            className={`border-b border-cream-100 hover:bg-cream-50 ${modoClassificar ? 'cursor-pointer select-none' : ''} ${selecionadas.has(t.id) ? 'bg-brand-50/40' : ''}`}
+                          >
                             {modoClassificar && (
                               <td className="px-3 py-3 w-8">
                                 <input
                                   type="checkbox"
                                   checked={selecionadas.has(t.id)}
-                                  onChange={() => alternarSelecao(t.id)}
-                                  className="w-4 h-4 accent-brand-600"
+                                  onChange={() => {}}
+                                  tabIndex={-1}
+                                  className="w-4 h-4 accent-brand-600 pointer-events-none"
                                 />
                               </td>
                             )}
@@ -1261,7 +1347,9 @@ export default function PrestacaoBancos() {
                       ) : (
                         <tr>
                           <td colSpan={modoClassificar ? 5 : 4} className="px-3 py-10 text-center text-sm text-stone-400">
-                            Nenhuma movimentação registrada neste período.
+                            {termoBusca
+                              ? `Nenhuma movimentação encontrada para "${busca}".`
+                              : 'Nenhuma movimentação registrada neste período.'}
                           </td>
                         </tr>
                       )}
